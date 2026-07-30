@@ -1,0 +1,36 @@
+services:
+  database:
+    image: postgres:16-alpine
+    container_name: document-ai-db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: documents
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d documents"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: document-ai-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      # Variáveis individuais exigidas pelo app/core/config.py
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=documents
+      - POSTGRES_HOST=database   # Nome do serviço do contêiner do Postgres
+      - POSTGRES_PORT=5432
+      - PYTHONPATH=/app
+    depends_on:
+      database:
+        condition: service_healthy

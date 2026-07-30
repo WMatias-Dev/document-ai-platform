@@ -1,0 +1,40 @@
+# Ignorar diretórios e arquivos de ambiente Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+## Versão Python para MacOS
+.DS_Store
+
+# Ignorar arquivos relacionados ao Docker
+*.dockerignore
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Ignorar arquivos relacionados ao VS Code
+.vscode/
+.history/
+*.code-workspace
+
+# Ignorar arquivos de dados e logs
+*.log
+*.sqlite
+*.db
+/media/
+
+# Ignorar arquivos de configuração sensíveis
+.env
+.flaskenv
+
+# Ignorar arquivos gerados pelo Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Ignorar arquivos gerados pelo sistema operacional
+Thumbs.db
+Desktop.ini
