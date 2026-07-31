@@ -10,3 +10,4 @@ pytest
 httpx
 pydantic[email]
 pwdlib[argon2]
+pyjwt

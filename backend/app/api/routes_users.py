@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database.connection import SessionLocal
+from app.database.dependencies import get_db
 from app.schemas.user_schema import UserCreate, UserResponse
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
@@ -11,15 +12,7 @@ router = APIRouter(
     tags=["Users"]
 )
 
-# 1. Injeção da sessão do banco
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# 2. Injeção do Repository e Service acoplados à sessão
+# 1. Injeção do Repository e Service acoplados à sessão
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
     repository = UserRepository(db)
     return UserService(repository)

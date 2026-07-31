@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.routes_users import get_db
+from app.database.dependencies import get_db
 
 from app.tests.conftest import TestingSessionLocal
 from app.database.base import Base
@@ -23,9 +23,7 @@ app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 
-def test_register_user():
-
-    Base.metadata.create_all(bind=engine_test)
+def test_register_user(db_session):
 
     response = client.post(
         "/users/register",
