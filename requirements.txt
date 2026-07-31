@@ -8,3 +8,5 @@ pydantic-settings
 email-validator
 pytest
 httpx
+pydantic[email]
+pwdlib[argon2]
