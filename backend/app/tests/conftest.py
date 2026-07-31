@@ -1,19 +1,29 @@
 import os
-
 from dotenv import load_dotenv
 
+# 1. Força o carregamento do arquivo de testes, substituindo qualquer variável existente
 load_dotenv(".env.test", override=True)
 
+# 2. AGORA você pode fazer os imports da sua aplicação
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
 
+from app.main import app
 from app.core.config import settings
+
+# Pode manter seus prints para validar! Agora eles devem mostrar localhost e 5433
+print("=" * 60)
+print("HOST:", settings.POSTGRES_HOST)
+print("PORT:", settings.POSTGRES_PORT)
+print("DB:", settings.POSTGRES_DB)
+print("=" * 60)
+
 from app.database.base import Base
-# Importar o modelo garante que a subclasse Base conheça as tabelas
 from app.database.models.user import User  # noqa: F401
 
-# 2. String de conexão
+# Banco de testes
 DATABASE_TEST_URL = (
     f"postgresql://{settings.POSTGRES_USER}:"
     f"{settings.POSTGRES_PASSWORD}@"
@@ -22,9 +32,6 @@ DATABASE_TEST_URL = (
     f"{settings.POSTGRES_DB}"
 )
 
-print(f"DEBUG: DATABASE_TEST_URL = {DATABASE_TEST_URL}") # Para depuração
-
-# 3. Criação do Engine de Teste que estava faltando
 engine_test = create_engine(DATABASE_TEST_URL)
 
 TestingSessionLocal = sessionmaker(
@@ -36,7 +43,8 @@ TestingSessionLocal = sessionmaker(
 
 @pytest.fixture(scope="function")
 def db_session():
-    # Cria todas as tabelas no banco de testes
+    """Cria uma sessão limpa para cada teste."""
+
     Base.metadata.create_all(bind=engine_test)
 
     session = TestingSessionLocal()
@@ -45,5 +53,12 @@ def db_session():
         yield session
     finally:
         session.close()
-        # Dropa as tabelas ao término do teste para isolar a suíte
         Base.metadata.drop_all(bind=engine_test)
+
+
+@pytest.fixture(scope="function")
+def client():
+    """Cliente HTTP para testar a API."""
+
+    with TestClient(app) as client:
+        yield client
