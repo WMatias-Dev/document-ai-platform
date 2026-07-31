@@ -8,8 +8,6 @@ DATABASE_URL = (
     f"/{settings.POSTGRES_DB}"
 )
 
-print(DATABASE_URL)
-
 engine = create_engine(
     DATABASE_URL,
     echo=True
