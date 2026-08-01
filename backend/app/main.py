@@ -4,10 +4,11 @@ from fastapi import FastAPI
 
 from app.database.base import Base
 from app.database.connection import engine
-from app.database import models  # noqa: F401
+from app.database import models
 from app.api.routes_users import router as user_router
+from app.api.routes_auth import router as auth_router
 
-
+#oconfiguração do lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Criando tabelas...")
@@ -24,8 +25,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+#registro de rotas
 app.include_router(user_router)
-
+app.include_router(auth_router)
 
 @app.get("/")
 def root():
