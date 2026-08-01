@@ -19,7 +19,7 @@ def verify_password(
         hashed_password
     )
 
-def create_acess_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """
     Gera um token JWT assinado
     """
