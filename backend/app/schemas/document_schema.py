@@ -1,6 +1,7 @@
 import uuid
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
+from uuid import UUID
 
 # 1. Classe Base: Agrupa os campos comuns para não repetirmos código
 class DocumentBase(BaseModel):
@@ -20,3 +21,10 @@ class DocumentResponse(DocumentBase):
 
     # Esta é a configuração que permite ao Pydantic ler o modelo do SQLAlchemy
     model_config = ConfigDict(from_attributes=True)
+
+#4.Schema do upload de documentos
+class DocumentUploadResponse(BaseModel):
+    id: UUID
+    filename: str
+    status: str
+    message: str
