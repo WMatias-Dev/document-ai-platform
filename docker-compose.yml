@@ -2,10 +2,8 @@ services:
   database:
     image: postgres:16-alpine
     container_name: document-ai-db
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      POSTGRES_DB: documents
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     healthcheck:
@@ -23,13 +21,9 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    env_file:
+      - .env
     environment:
-      # Variáveis individuais exigidas pelo app/core/config.py
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin
-      - POSTGRES_DB=documents
-      - POSTGRES_HOST=database   # Nome do serviço do contêiner do Postgres
-      - POSTGRES_PORT=5432
       - PYTHONPATH=/app
     depends_on:
       database:
