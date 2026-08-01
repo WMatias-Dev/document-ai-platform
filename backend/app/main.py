@@ -7,6 +7,7 @@ from app.database.connection import engine
 from app.database import models
 from app.api.routes_users import router as user_router
 from app.api.routes_auth import router as auth_router
+from app.api.routes_documents import router as documents_router
 
 #oconfiguração do lifespan
 @asynccontextmanager
@@ -28,6 +29,7 @@ app = FastAPI(
 #registro de rotas
 app.include_router(user_router)
 app.include_router(auth_router)
+app.include_router(documents_router)
 
 @app.get("/")
 def root():
