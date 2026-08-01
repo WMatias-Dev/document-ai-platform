@@ -1,3 +1,4 @@
+import uuid
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 #responsavel pelo cadastro
@@ -7,10 +8,8 @@ class UserCreate(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
-    id: int
+    id: uuid.UUID  # <-- A alteração é aqui! Antes estava id: int
     name: str
     email: EmailStr
 
-    model_config = ConfigDict(
-        from_attributes = True
-    )
+    model_config = ConfigDict(from_attributes=True)
