@@ -32,3 +32,17 @@ class DocumentRepository:
         # Recebe a entidade já validada pelo serviço e apenas deleta
         self.db.delete(document)
         self.db.commit()
+
+    def create_uploaded_document(self, document_data: dict) -> Document:
+        """
+        Salva os metadados do documento recém-upado no banco de dados.
+        """
+        # 1. Cria a instância do modelo SQLAlchemy desempacotando o dicionário
+        db_document = Document(**document_data)
+        
+        # 2. Adiciona à sessão, comita e atualiza (refresh) para pegar o ID gerado (UUID)
+        self.db.add(db_document)
+        self.db.commit()
+        self.db.refresh(db_document)
+        
+        return db_document

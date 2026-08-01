@@ -42,10 +42,10 @@ def get_document_service(db: Session = Depends(get_db)):
     response_model=DocumentUploadResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def upload_document(
+def upload_document( # <-- 1. REMOVIDO o 'async' aqui
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    # service: DocumentService = Depends(get_document_service),
+    service: DocumentService = Depends(get_document_service), # <-- 2. DESCOMENTADO
 ):
     # 1. Validação do tipo do arquivo
     if file.content_type not in ALLOWED_MIME_TYPES:
@@ -62,7 +62,6 @@ async def upload_document(
                 detail=f"O arquivo excede o limite de {MAX_FILE_SIZE / (1024 * 1024):.0f} MB.",
             )
     else:
-        # Compatibilidade com versões antigas do FastAPI
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
@@ -80,20 +79,17 @@ async def upload_document(
             detail="Nome do arquivo não informado.",
         )
 
-    # 4. Futuramente:
-    # document = await service.process_initial_upload(
-    #     file=file,
-    #     user_id=current_user.id,
-    # )
-
-    # 5. Mock da resposta
-    return DocumentUploadResponse(
-        id=uuid.uuid4(),
-        filename=file.filename,
-        status="RECEIVED",
-        message="Upload concluído. Documento na fila de processamento.",
+    document = service.process_initial_upload(
+        file=file,
+        user_id=current_user.id,
     )
 
+    return DocumentUploadResponse(
+        id=document.id, 
+        filename=document.filename,
+        status=document.status.value if hasattr(document.status, 'value') else document.status,
+        message="Upload concluído. Documento salvo com sucesso.",
+    )
 
 @router.post(
     "/",
