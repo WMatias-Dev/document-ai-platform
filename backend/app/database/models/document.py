@@ -29,7 +29,7 @@ class Document(Base):
 
     # Dados lógicos do documento (Mantidos da sua versão)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=True) # Receberá o texto extraído na Fase 3
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     # Metadados do arquivo físico
     filename: Mapped[str] = mapped_column(String(255), nullable=False)

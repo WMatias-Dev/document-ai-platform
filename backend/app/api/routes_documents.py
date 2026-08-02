@@ -1,14 +1,7 @@
 import uuid
 from typing import List
 
-from fastapi import (
-    APIRouter,
-    UploadFile,
-    File,
-    HTTPException,
-    Depends,
-    status,
-)
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 # Dependências de banco e autenticação
@@ -17,35 +10,33 @@ from app.api.routes_auth import get_current_user
 from app.database.models.user import User
 
 # Schemas, Repositório e Serviço
-from app.schemas.document_schema import (
-    DocumentCreate,
-    DocumentResponse,
-    DocumentUploadResponse,
+from app.schemas.document_schema import (DocumentCreate,DocumentResponse,DocumentUploadResponse,
 )
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
-
+from app.services.parsing_service import ParsingService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 ALLOWED_MIME_TYPES = ["application/pdf"]
 
-
+# Dependências (Fábricas de serviços)
 def get_document_service(db: Session = Depends(get_db)):
     repository = DocumentRepository(db)
     return DocumentService(repository)
 
+def get_parsing_service(db: Session = Depends(get_db)):
+    repository = DocumentRepository(db)
+    return ParsingService(repository)
 
-@router.post(
-    "/upload",
-    response_model=DocumentUploadResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def upload_document( # <-- 1. REMOVIDO o 'async' aqui
+@router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def upload_document(
+    background_tasks: BackgroundTasks, # Injetamos o gerenciador de tarefas em background
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    service: DocumentService = Depends(get_document_service), # <-- 2. DESCOMENTADO
+    doc_service: DocumentService = Depends(get_document_service),
+    parse_service: ParsingService = Depends(get_parsing_service)
 ):
     # 1. Validação do tipo do arquivo
     if file.content_type not in ALLOWED_MIME_TYPES:
@@ -54,7 +45,7 @@ def upload_document( # <-- 1. REMOVIDO o 'async' aqui
             detail="Apenas arquivos PDF são permitidos.",
         )
 
-    # 2. Validação do tamanho do arquivo
+    # 2. Validação do tamanho do arquivo (Seu código atual com file.size)
     if file.size is not None:
         if file.size > MAX_FILE_SIZE:
             raise HTTPException(
@@ -62,10 +53,10 @@ def upload_document( # <-- 1. REMOVIDO o 'async' aqui
                 detail=f"O arquivo excede o limite de {MAX_FILE_SIZE / (1024 * 1024):.0f} MB.",
             )
     else:
+        # Fallback
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
-
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -79,16 +70,21 @@ def upload_document( # <-- 1. REMOVIDO o 'async' aqui
             detail="Nome do arquivo não informado.",
         )
 
-    document = service.process_initial_upload(
+    # 4. Fase 2: Salva no disco e registra o status inicial no banco
+    document = doc_service.process_initial_upload(
         file=file,
         user_id=current_user.id,
     )
 
+    # 5. Fase 3: Adiciona a extração de texto à fila do BackgroundTasks
+    background_tasks.add_task(parse_service.process_document, document.id)
+
+    # 6. Retorno imediato (Rápido e sem timeouts)
     return DocumentUploadResponse(
-        id=document.id, 
+        id=document.id,
         filename=document.filename,
-        status=document.status.value if hasattr(document.status, 'value') else document.status,
-        message="Upload concluído. Documento salvo com sucesso.",
+        status=document.status.value,
+        message="Upload concluído. O documento está sendo processado."
     )
 
 @router.post(
