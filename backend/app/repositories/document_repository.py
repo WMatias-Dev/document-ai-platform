@@ -1,8 +1,9 @@
 import uuid
-from typing import List, Optional
+from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.database.models.document import Document, DocumentStatus
 from app.schemas.document_schema import DocumentCreate
+from app.database.models.document_chunk import DocumentChunk
 
 class DocumentRepository:
     def __init__(self, db: Session):
@@ -67,3 +68,14 @@ class DocumentRepository:
             document.status = status
             self.db.commit()
             self.db.refresh(document)
+
+    def create_chunks(self, chunks_data: List[Dict[str, Any]]) -> None:
+        """
+        Recebe uma lista de dicionários e insere todos os chunks no banco de uma vez só (Bulk Insert).
+        """
+        # Converte a lista de dicionários em objetos SQLAlchemy
+        chunks = [DocumentChunk(**data) for data in chunks_data]
+        
+        # add_all insere tudo na mesma transação de forma eficiente
+        self.db.add_all(chunks)
+        self.db.commit()

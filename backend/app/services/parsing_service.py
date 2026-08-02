@@ -2,6 +2,7 @@ import uuid
 import pypdfium2 as pdfium
 from app.repositories.document_repository import DocumentRepository
 from app.database.models.document import DocumentStatus
+from app.services.chunking_service import ChunkingService
 
 class ParsingService:
     def __init__(self, repository: DocumentRepository):
@@ -49,6 +50,10 @@ class ParsingService:
                 content=final_text, 
                 status=DocumentStatus.COMPLETED
             )
+
+            # 6. INICIA A FASE 4 IMEDIATAMENTE APÓS A FASE 3
+            chunking_service = ChunkingService(self.repository)
+            chunking_service.process_document(document_id)
 
         except Exception as e:
             # Em caso de PDF corrompido, protegido por senha ou erro de I/O
