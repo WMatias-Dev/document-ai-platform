@@ -79,3 +79,12 @@ class DocumentRepository:
         # add_all insere tudo na mesma transação de forma eficiente
         self.db.add_all(chunks)
         self.db.commit()
+
+    def get_chunks_by_document(self, document_id: uuid.UUID) -> List[DocumentChunk]:
+        """Busca todos os chunks de um documento específico."""
+        return self.db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).all()
+
+    def save_chunks(self, chunks: List[DocumentChunk]) -> None:
+        """Confirma as alterações feitas nos objetos (como a adição dos vetores)."""
+        self.db.add_all(chunks)
+        self.db.commit()
