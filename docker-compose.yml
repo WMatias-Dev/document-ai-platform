@@ -1,6 +1,7 @@
 services:
   database:
-    image: postgres:16-alpine
+    # IMAGEM ALTERADA: Agora inclui o pgvector nativamente
+    image: pgvector/pgvector:pg16
     container_name: document-ai-db
     env_file:
       - .env
@@ -11,6 +12,29 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+
+  #  Motor de IA Local
+  ollama:
+    image: ollama/ollama:latest
+    container_name: document-ai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  #Baixa o modelo automaticamente e desliga
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: document-ai-ollama-init
+    depends_on:
+      - ollama
+    command: >
+      sh -c "
+        echo 'Aguardando Ollama iniciar...' &&
+        sleep 5 &&
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}' &&
+        echo 'Modelo nomic-embed-text baixado com sucesso!'
+      "
 
   api:
     build:
@@ -25,6 +49,11 @@ services:
       - .env
     environment:
       - PYTHONPATH=/app
+      # Aponta para o container do Ollama na rede do Docker
+      - OLLAMA_BASE_URL=http://ollama:11434 
     depends_on:
       database:
         condition: service_healthy
+
+volumes:
+  ollama_data:

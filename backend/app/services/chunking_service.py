@@ -49,9 +49,11 @@ class ChunkingService:
 
             # 4. Salva todos os pedaços de uma vez no banco
             self.repository.create_chunks(chunks_data)
-
-            # 5. Volta o status para COMPLETED após fatiar tudo com sucesso
-            self.repository.update_status(document_id, DocumentStatus.COMPLETED)
+            
+            # 5. INICIA A EMBEDDINGS IMEDIATAMENTE APÓS O CHUNKING
+            from app.services.embedding_service import EmbeddingService
+            embedding_service = EmbeddingService(self.repository)
+            embedding_service.process_document(document_id)
 
         except Exception as e:
             # Em caso de falha, registramos o erro para evitar a caixa preta
