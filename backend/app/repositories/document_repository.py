@@ -1,7 +1,7 @@
 import uuid
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.database.models.document import Document
+from app.database.models.document import Document, DocumentStatus
 from app.schemas.document_schema import DocumentCreate
 
 class DocumentRepository:
@@ -46,3 +46,24 @@ class DocumentRepository:
         self.db.refresh(db_document)
         
         return db_document
+
+    def update_status(self, document_id: uuid.UUID, status: DocumentStatus) -> None:
+        """
+        Atualiza apenas o status de processamento do documento.
+        """
+        document = self.get_by_id(document_id)
+        if document:
+            document.status = status
+            self.db.commit()
+            self.db.refresh(document)
+
+    def update_document_content(self, document_id: uuid.UUID, content: Optional[str], status: DocumentStatus) -> None:
+        """
+        Atualiza o texto extraído e o status final (COMPLETED ou ERROR) ao mesmo tempo.
+        """
+        document = self.get_by_id(document_id)
+        if document:
+            document.content = content
+            document.status = status
+            self.db.commit()
+            self.db.refresh(document)
