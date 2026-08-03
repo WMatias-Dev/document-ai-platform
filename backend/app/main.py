@@ -1,6 +1,9 @@
-from contextlib import asynccontextmanager
+import logging
+import time
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from sqlalchemy import text
 
 from app.database.base import Base
 from app.database.connection import engine
@@ -8,13 +11,26 @@ from app.database import models
 from app.api.routes_users import router as user_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_documents import router as documents_router
+from app.database.models.user import User
+from app.database.models.document import Document
+from app.database.models.document_chunk import DocumentChunk
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 #oconfiguração do lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("Preparando banco de dados...")
+    
+    # 1. Ativa o motor de IA no PostgreSQL automaticamente
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+        
     print("Criando tabelas...")
+    # 2. Cria as tabelas
     Base.metadata.create_all(bind=engine)
-    print("Tabelas criadas!")
+    print("Tabelas criadas com sucesso!")
 
     yield
 
