@@ -1,7 +1,11 @@
 import uuid
+import logging
 from typing import List
 from app.repositories.document_repository import DocumentRepository
 from app.database.models.document import DocumentStatus
+
+# Configuração do logger
+logger = logging.getLogger(__name__)
 
 class ChunkingService:
     def __init__(self, repository: DocumentRepository, chunk_size: int = 1000, overlap: int = 200):
@@ -23,6 +27,8 @@ class ChunkingService:
         self.repository.update_status(document_id, DocumentStatus.CHUNKING)
 
         try:
+            logger.info(f"Iniciando divisão do texto (chunking) para o doc ID: {document_id}")
+            
             # 3. Lógica matemática de fatiamento (Sliding Window)
             text = document.content
             chunks_data = []
@@ -48,9 +54,11 @@ class ChunkingService:
                 chunk_index += 1
 
             # 4. Salva todos os pedaços de uma vez no banco
+            logger.info(f"Chunking concluído: {len(chunks_data)} chunks gerados. Salvando no banco...")
             self.repository.create_chunks(chunks_data)
             
             # 5. INICIA A EMBEDDINGS IMEDIATAMENTE APÓS O CHUNKING
+            # Importação local para evitar importação circular entre os serviços
             from app.services.embedding_service import EmbeddingService
             embedding_service = EmbeddingService(self.repository)
             embedding_service.process_document(document_id)
@@ -58,4 +66,4 @@ class ChunkingService:
         except Exception as e:
             # Em caso de falha, registramos o erro para evitar a caixa preta
             self.repository.update_status(document_id, DocumentStatus.ERROR)
-            # logger.error(f"Erro no chunking do doc {document_id}: {e}")
+            logger.error(f"Erro no chunking do doc {document_id}: {str(e)}")

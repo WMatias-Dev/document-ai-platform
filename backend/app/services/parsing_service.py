@@ -1,8 +1,11 @@
 import uuid
 import pypdfium2 as pdfium
+import logging
 from app.repositories.document_repository import DocumentRepository
 from app.database.models.document import DocumentStatus
 from app.services.chunking_service import ChunkingService
+
+logger = logging.getLogger(__name__)
 
 class ParsingService:
     def __init__(self, repository: DocumentRepository):
@@ -22,6 +25,8 @@ class ParsingService:
         self.repository.update_status(document_id, DocumentStatus.PARSING)
 
         try:
+            logger.info(f"Iniciando extração de texto para o documento ID: {document_id}")
+            
             # 3. Inicializa o motor do pypdfium2 e extrai o texto
             pdf = pdfium.PdfDocument(document.file_path)
             extracted_text_blocks = []
@@ -37,6 +42,7 @@ class ParsingService:
 
             # 4. Verifica se o pdf tem texto util
             if not final_text:
+                logger.warning(f"O arquivo {document.file_path} não contém texto legível.")
                 self.repository.update_document_content(
                     document_id, 
                     content=None, 
@@ -45,6 +51,7 @@ class ParsingService:
                 return
 
             # 5. Sucesso: Salva o texto no banco e conclui a etapa
+            logger.info(f"Extração concluída com sucesso para ID: {document_id}")
             self.repository.update_document_content(
                 document_id, 
                 content=final_text, 
@@ -57,7 +64,7 @@ class ParsingService:
 
         except Exception as e:
             # Em caso de PDF corrompido, protegido por senha ou erro de I/O
-            # Registra a falha de extração de forma explícita no status
+            logger.error(f"Erro de parsing no arquivo ID {document_id}: {str(e)}")
             self.repository.update_document_content(
                 document_id, 
                 content=None, 
