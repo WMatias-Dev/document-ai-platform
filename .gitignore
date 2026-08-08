@@ -38,3 +38,4 @@ htmlcov/
 # Ignorar arquivos gerados pelo sistema operacional
 Thumbs.db
 Desktop.ini
+/backend/uploads
