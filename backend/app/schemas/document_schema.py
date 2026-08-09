@@ -1,30 +1,36 @@
 import uuid
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
-from uuid import UUID
 
-# 1. Classe Base: Agrupa os campos comuns para não repetirmos código
+
+# 1. Classe Base: Agrupa os campos comuns
 class DocumentBase(BaseModel):
     title: str
     content: Optional[str] = None
 
-# 2. Schema de Criação (O que o usuário envia no POST)
-class DocumentCreate(DocumentBase):
-    # Passa em branco pois ele herda title e content
-    # O owner_id nao entra aqui
-    pass 
 
-# 3. Schema de Resposta (O que a API devolve para o usuário)
+# 2. Schema de Criação: Inclui dados do arquivo físico e metadados de armazenamento
+class DocumentCreate(DocumentBase):
+    filename: str
+    file_path: Optional[str] = None
+    content_type: Optional[str] = "application/pdf"
+
+
+# 3. Schema de Resposta para Leitura Completa
 class DocumentResponse(DocumentBase):
     id: uuid.UUID
     owner_id: uuid.UUID
+    filename: Optional[str] = None
+    file_path: Optional[str] = None
+    content_type: Optional[str] = None
+    status: Optional[str] = None
 
-    # Esta é a configuração que permite ao Pydantic ler o modelo do SQLAlchemy
     model_config = ConfigDict(from_attributes=True)
 
-#4.Schema do upload de documentos
+
+# 4. Schema de Resposta do Upload Async
 class DocumentUploadResponse(BaseModel):
-    id: UUID
+    id: uuid.UUID
     filename: str
     status: str
     message: str

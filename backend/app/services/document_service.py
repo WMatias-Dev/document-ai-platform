@@ -1,17 +1,16 @@
-import uuid
 import logging
+import uuid
 from typing import List
-from fastapi import UploadFile, BackgroundTasks, HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 
 from app.database.models.document import Document, DocumentStatus
 from app.database.models.user import User
-from app.schemas.document_schema import DocumentCreate
 from app.repositories.document_repository import DocumentRepository
-
-from app.services.storage_service import StorageService
-from app.services.parsing_service import ParsingService
+from app.schemas.document_schema import DocumentCreate
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
+from app.services.parsing_service import ParsingService
+from app.services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -38,23 +37,36 @@ class DocumentService:
         background_tasks: BackgroundTasks,
     ) -> dict:
         """
-        Recebe o upload, persiste o arquivo físico e registra os metadados iniciais.
+        Recebe o upload, persiste o arquivo físico e registra os metadados iniciais no banco.
         """
-        # Salva o arquivo no storage
-        file_path = await self.storage.save_file(file)
+        try:
+            file_path = await self.storage.save_file(file)
+        except ValueError as ve:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve)
+            )
+        except Exception as e:
+            logger.error(f"Falha ao salvar arquivo físico: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Erro interno ao salvar arquivo.",
+            )
 
-        # Instancia DocumentCreate com os parâmetros do Schema
+        filename_real = file.filename or "documento.pdf"
+
+        # Preenche os dados completos do arquivo recuperados do UploadFile/Storage
         document_in = DocumentCreate(
-            title=file.filename or "Documento Sem Nome"
+            title=filename_real,
+            filename=filename_real,
+            file_path=str(file_path),
+            content_type=file.content_type or "application/pdf",
         )
 
-        # Salva o registro no banco via repositório
         document_record = self.repository.create(
             document_in=document_in,
             owner_id=owner_id,
         )
 
-        # Dispara o processamento em background
         background_tasks.add_task(
             self._run_pipeline,
             document_record.id,
@@ -65,7 +77,7 @@ class DocumentService:
 
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
         """
-        Orquestra o pipeline completo: Parsing -> Chunking -> Embedding
+        Orquestra o pipeline completo em background: Parsing -> Chunking -> Embedding
         """
         try:
             # 1. PARSING: Extrai o texto do PDF
@@ -98,19 +110,20 @@ class DocumentService:
                 self.embedder.process_document(document_id)
 
             # 4. FINALIZAÇÃO
-            self.repository.update_status(
-                document_id=document_id,
-                status=DocumentStatus.COMPLETED,
-            )
+            self.repository.update_status(document_id, DocumentStatus.COMPLETED)
 
         except Exception as e:
-            logger.error(f"Erro no pipeline do documento {document_id}: {e}", exc_info=True)
+            logger.error(
+                f"Erro no pipeline do documento {document_id}: {e}", exc_info=True
+            )
             self.repository.update_status(
                 document_id=document_id,
                 status=DocumentStatus.ERROR,
             )
 
-    def create_document(self, document_in: DocumentCreate, current_user: User) -> Document:
+    def create_document(
+        self, document_in: DocumentCreate, current_user: User
+    ) -> Document:
         return self.repository.create(document_in=document_in, owner_id=current_user.id)
 
     def get_document(self, document_id: uuid.UUID, current_user: User) -> Document:
