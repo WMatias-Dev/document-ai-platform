@@ -1,41 +1,45 @@
-# Ignorar diretórios e arquivos de ambiente Python
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 .Python
+
+# Virtual
 env/
 venv/
 .venv/
-## Versão Python para MacOS
-.DS_Store
 
-# Ignorar arquivos relacionados ao Docker
-*.dockerignore
-docker-compose.override.yml
-docker-compose.local.yml
 
-# Ignorar arquivos relacionados ao VS Code
-.vscode/
-.history/
-*.code-workspace
+# Environment / Secrets
 
-# Ignorar arquivos de dados e logs
-*.log
-*.sqlite
-*.db
-/media/
-
-# Ignorar arquivos de configuração sensíveis
 .env
+.env.local
+.env.production
 .flaskenv
 
-# Ignorar arquivos gerados pelo Pytest
-.pytest_cache/
-htmlcov/
-.coverage
 
-# Ignorar arquivos gerados pelo sistema operacional
-Thumbs.db
-Desktop.ini
-/backend/uploads
+# Testing / Coverage
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+
+# Database / Local data
+
+
+*.sqlite
+*.sqlite3
+*.db
+/backend/uploads/
+
+
+
+# Logs
+*.log
+
+
+# Docker
+docker-compose.override.yml
+docker-compose.local.yml
