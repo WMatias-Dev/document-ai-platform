@@ -10,6 +10,8 @@ from app.repositories.document_repository import DocumentRepository
 
 from app.services.storage_service import StorageService
 from app.services.parsing_service import ParsingService
+from app.services.chunking_service import ChunkingService
+from app.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +22,14 @@ class DocumentService:
         repository: DocumentRepository,
         storage: StorageService,
         parser: ParsingService,
+        chunker: ChunkingService,
+        embedder: EmbeddingService,
     ):
         self.repository = repository
         self.storage = storage
         self.parser = parser
+        self.chunker = chunker
+        self.embedder = embedder
 
     async def process_upload(
         self,
@@ -59,21 +65,46 @@ class DocumentService:
 
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
         """
-        Executa o pipeline de parsing em background (que encadeia chunking e embedding).
+        Orquestra o pipeline completo: Parsing -> Chunking -> Embedding
         """
         try:
-            # 1. Processamento
-            self.parser.process_document(document_id)
+            # 1. PARSING: Extrai o texto do PDF
+            self.repository.update_status(document_id, DocumentStatus.PARSING)
+            extracted_text = self.parser.extract_text(file_path)
 
-            # 2. Atualiza status para concluído
+            self.repository.update_document_content(
+                document_id=document_id,
+                content=extracted_text,
+                status=DocumentStatus.PARSING,
+            )
+
+            # 2. CHUNKING: Transforma o texto em pedaços e persiste no banco
+            self.repository.update_status(document_id, DocumentStatus.CHUNKING)
+            raw_chunks = self.chunker.chunk_text(extracted_text)
+
+            # Formata os chunks para persistência no repositório
+            chunks_data = [
+                {
+                    "document_id": document_id,
+                    "chunk_index": idx,
+                    "text_content": chunk,
+                }
+                for idx, chunk in enumerate(raw_chunks)
+            ]
+            self.repository.create_chunks(chunks_data)
+
+            # 3. EMBEDDING: Gera os vetores semânticos para cada chunk
+            if hasattr(self.embedder, "process_document"):
+                self.embedder.process_document(document_id)
+
+            # 4. FINALIZAÇÃO
             self.repository.update_status(
                 document_id=document_id,
                 status=DocumentStatus.COMPLETED,
             )
 
         except Exception as e:
-            logger.error(f"Erro no processamento do documento {document_id}: {e}", exc_info=True)
-            # 3. Atualiza para status de falha (ERROR)
+            logger.error(f"Erro no pipeline do documento {document_id}: {e}", exc_info=True)
             self.repository.update_status(
                 document_id=document_id,
                 status=DocumentStatus.ERROR,
@@ -108,6 +139,5 @@ class DocumentService:
         if hasattr(self.storage, "delete_file") and document.file_path:
             self.storage.delete_file(document.file_path)
 
-        # Passa a entidade `document` conforme esperado pelo repositório
         self.repository.delete(document)
         logger.info(f"[Documento {document_id}] Apagado com sucesso.")

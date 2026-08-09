@@ -1,72 +1,47 @@
-import uuid
-import pypdfium2 as pdfium
 import logging
-from app.repositories.document_repository import DocumentRepository
-from app.database.models.document import DocumentStatus
-from app.services.chunking_service import ChunkingService
+import pypdfium2 as pdfium
 
 logger = logging.getLogger(__name__)
 
 class ParsingService:
-    def __init__(self, repository: DocumentRepository):
-        self.repository = repository
-
-    def process_document(self, document_id: uuid.UUID) -> None:
+    def extract_text(self, file_path: str) -> str:
         """
-        Lê o arquivo PDF físico, extrai o texto e atualiza o banco de dados.
-        Trata erros silenciosamente para não quebrar o sistema.
+        Abre o PDF físico, extrai o texto página por página e 
+        valida se o conteúdo extraído é utilizável.
         """
-        # 1. Busca o documento no banco
-        document = self.repository.get_by_id(document_id)
-        if not document or not document.file_path:
-            return
-
-        # 2. Atualiza o status para mostrar que o processamento começou
-        self.repository.update_status(document_id, DocumentStatus.PARSING)
-
+        logger.info(f"Iniciando extração de texto do arquivo: {file_path}")
+        
         try:
-            logger.info(f"Iniciando extração de texto para o documento ID: {document_id}")
+            # Carrega o documento usando pypdfium2 (muito rápido e eficiente em memória)
+            pdf = pdfium.PdfDocument(file_path)
+            text_parts = []
             
-            # 3. Inicializa o motor do pypdfium2 e extrai o texto
-            pdf = pdfium.PdfDocument(document.file_path)
-            extracted_text_blocks = []
-
-            for page in pdf:
-                text_page = page.get_textpage()
-                text = text_page.get_text_range()
-                if text:
-                    extracted_text_blocks.append(text)
-
-            # Junta todas as páginas com uma quebra de linha
-            final_text = "\n\n".join(extracted_text_blocks).strip()
-
-            # 4. Verifica se o pdf tem texto util
-            if not final_text:
-                logger.warning(f"O arquivo {document.file_path} não contém texto legível.")
-                self.repository.update_document_content(
-                    document_id, 
-                    content=None, 
-                    status=DocumentStatus.ERROR
-                )
-                return
-
-            # 5. Sucesso: Salva o texto no banco e conclui a etapa
-            logger.info(f"Extração concluída com sucesso para ID: {document_id}")
-            self.repository.update_document_content(
-                document_id, 
-                content=final_text, 
-                status=DocumentStatus.COMPLETED
-            )
-
-            # 6. INICIA A FASE 4 IMEDIATAMENTE APÓS A FASE 3
-            chunking_service = ChunkingService(self.repository)
-            chunking_service.process_document(document_id)
-
+            # Itera sobre todas as páginas do PDF
+            for i in range(len(pdf)):
+                page = pdf[i]
+                textpage = page.get_textpage()
+                # Extrai o texto da página
+                text_parts.append(textpage.get_text_bounded())
+            
+            # Une tudo com quebras de linha e remove espaços em branco nas pontas
+            full_text = "\n".join(text_parts).strip()
+            
+            # Validação crucial: o PDF tinha texto real?
+            if not full_text:
+                logger.warning(f"Nenhum texto extraível encontrado em {file_path}. Pode ser um PDF escaneado ou vazio.")
+                raise ValueError("O documento está vazio ou contém apenas imagens (OCR não suportado nesta etapa).")
+                
+            logger.info(f"Extração concluída. Total de caracteres: {len(full_text)}")
+            return full_text
+            
+        except ValueError as ve:
+            # Repassa o nosso erro de validação (PDF sem texto)
+            raise ve
         except Exception as e:
-            # Em caso de PDF corrompido, protegido por senha ou erro de I/O
-            logger.error(f"Erro de parsing no arquivo ID {document_id}: {str(e)}")
-            self.repository.update_document_content(
-                document_id, 
-                content=None, 
-                status=DocumentStatus.ERROR
-            )
+            # Captura erros bizarros (PDF corrompido, protegido por senha, etc)
+            logger.error(f"Erro crítico ao ler o PDF {file_path}: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Falha na leitura do arquivo PDF: {str(e)}")
+        finally:
+            # Boa prática: fechar o documento explicitamente se a variável existir
+            if 'pdf' in locals():
+                pdf.close()
