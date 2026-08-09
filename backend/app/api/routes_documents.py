@@ -1,51 +1,63 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, status, BackgroundTasks
-from sqlalchemy.orm import Session
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    HTTPException,
+    Depends,
+    status,
+    BackgroundTasks,
+)
 
-# Dependências de banco e autenticação
-from app.database.dependencies import get_db
-from app.api.routes_auth import get_current_user
+# Dependências unificadas de banco, autenticação e serviços
+from app.database.dependencies import get_current_user, get_document_service
 from app.database.models.user import User
 
-# Schemas, Repositório e Serviço
-from app.schemas.document_schema import (DocumentCreate,DocumentResponse,DocumentUploadResponse,
+# Schemas e Serviços
+from app.schemas.document_schema import (
+    DocumentCreate,
+    DocumentResponse,
 )
-from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
-from app.services.parsing_service import ParsingService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 ALLOWED_MIME_TYPES = ["application/pdf"]
 
-# Dependências (Fábricas de serviços)
-def get_document_service(db: Session = Depends(get_db)):
-    repository = DocumentRepository(db)
-    return DocumentService(repository)
 
-def get_parsing_service(db: Session = Depends(get_db)):
-    repository = DocumentRepository(db)
-    return ParsingService(repository)
-
-@router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/upload",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload e processamento inicial de documento",
+)
 async def upload_document(
-    background_tasks: BackgroundTasks, # Injetamos o gerenciador de tarefas em background
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    doc_service: DocumentService = Depends(get_document_service),
-    parse_service: ParsingService = Depends(get_parsing_service)
+    document_service: DocumentService = Depends(get_document_service),
 ):
-    # 1. Validação do tipo do arquivo
+    """
+    Recebe um arquivo PDF, valida os metadados, persiste o arquivo físico
+    e dispara o pipeline de processamento (Parsing, Chunking e Embedding) em background.
+    """
+    # 1. Validação do tipo de arquivo
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Apenas arquivos PDF são permitidos.",
         )
 
-    # 2. Validação do tamanho do arquivo (Seu código atual com file.size)
+    # 2. Validação do nome do arquivo
+    if file.filename is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nome do arquivo não informado.",
+        )
+
+    # 3. Validação do tamanho do arquivo
     if file.size is not None:
         if file.size > MAX_FILE_SIZE:
             raise HTTPException(
@@ -53,7 +65,6 @@ async def upload_document(
                 detail=f"O arquivo excede o limite de {MAX_FILE_SIZE / (1024 * 1024):.0f} MB.",
             )
     else:
-        # Fallback
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
@@ -63,29 +74,13 @@ async def upload_document(
                 detail=f"O arquivo excede o limite de {MAX_FILE_SIZE / (1024 * 1024):.0f} MB.",
             )
 
-    # 3. Validação do nome do arquivo
-    if file.filename is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nome do arquivo não informado.",
-        )
-
-    # 4. Fase 2: Salva no disco e registra o status inicial no banco
-    document = doc_service.process_initial_upload(
+    # 4. Delega o salvamento e o disparo da task em background para o DocumentService
+    return await document_service.process_upload(
         file=file,
-        user_id=current_user.id,
+        owner_id=current_user.id,
+        background_tasks=background_tasks,
     )
 
-    # 5. Fase 3: Adiciona a extração de texto à fila do BackgroundTasks
-    background_tasks.add_task(parse_service.process_document, document.id)
-
-    # 6. Retorno imediato (Rápido e sem timeouts)
-    return DocumentUploadResponse(
-        id=document.id,
-        filename=document.filename,
-        status=document.status.value,
-        message="Upload concluído. O documento está sendo processado."
-    )
 
 @router.post(
     "/",

@@ -1,39 +1,46 @@
-from app.database.connection import SessionLocal
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 import jwt
 
 from app.core.config import settings
-from app.repositories.user_repository import UserRepository
+from app.database.connection import SessionLocal
 from app.database.models.user import User
+from app.repositories.user_repository import UserRepository
+from app.repositories.document_repository import DocumentRepository
 
+# Serviços
+from app.services.storage_service import StorageService
+from app.services.parsing_service import ParsingService
+from app.services.chunking_service import ChunkingService
+from app.services.embedding_service import EmbeddingService
+from app.services.document_service import DocumentService
+
+
+# 1. Gerenciamento de Sessão de Banco de Dados
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
-
     finally:
         db.close()
 
+
+# 2. Autenticação e Segurança JWT
 oauth_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def get_current_user(
     token: str = Depends(oauth_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    """
-    Decodifica o token, valida e retorna o login
-    """
+    """Decodifica o token JWT, valida o payload e recupera o usuário logado."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Não foi possível validar as credenciais",
+        detail="Não foi possível validar as credenciais.",
         headers={"WWW-Authenticate": "Bearer"}
     )
 
     try:
-        #tenta decodificar o token usando a chave secreta
         payload = jwt.decode(
             token,
             settings.JWT_SECRET_KEY,
@@ -44,10 +51,8 @@ def get_current_user(
             raise credentials_exception
 
     except jwt.PyJWTError:
-        #garantindo q token expirado não passa
         raise credentials_exception
 
-    #verifica se o usuario ainda existe no banco
     user_repo = UserRepository(db)
     user = user_repo.get_by_email(email)
 
@@ -55,3 +60,25 @@ def get_current_user(
         raise credentials_exception
 
     return user
+
+
+# 3. Factory / Injeção de Dependência do DocumentService
+def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
+    """
+    Instancia o DocumentService injetando o repositório e todos os serviços necessários.
+    """
+    repository = DocumentRepository(db)
+    storage = StorageService()
+    parser = ParsingService()
+    chunker = ChunkingService()
+    
+    # Adicione a variável 'repository' na inicialização do EmbeddingService
+    embedder = EmbeddingService(repository=repository)
+
+    return DocumentService(
+        repository=repository,
+        storage=storage,
+        parser=parser,
+        chunker=chunker,
+        embedder=embedder,
+    )
