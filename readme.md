@@ -1,107 +1,113 @@
 # 📄 Document AI Platform (Plataforma IA para Documentos)
 
-Uma API robusta e moderna desenvolvida com **FastAPI** para gestão inteligente de documentos usando IA Generativa. Este projeto serve como um showcase de engenharia de software no meu portfólio, utilizando conceitos de arquitetura limpa, segurança moderna, injeção de dependências e testes automatizados.
+Uma API robusta e moderna desenvolvida com **FastAPI** para gestão inteligente de documentos usando IA Generativa e busca vetorial. Este projeto serve como um showcase de engenharia de software no meu portfólio, aplicando conceitos de arquitetura em camadas, processamento assíncrono, injeção de dependências e testes automatizados.
 
 ---
 
 ## 🚀 Tecnologias Utilizadas
 
-- **Web Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Rápido, assíncrono e baseado em type hints)
+- **Web Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Assíncrono, moderno e baseado em type hints)
+- **Database & Vector Search**: [PostgreSQL 16](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) (Para armazenamento e busca semântica de embeddings com dimensão 768)
 - **Database ORM**: [SQLAlchemy 2.0](https://www.sqlalchemy.org/) (Tipagem estática moderna com `Mapped` e `mapped_column`)
-- **Database**: [PostgreSQL 16](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) (Para busca semântica de embeddings)
-- **Security**: [pwdlib](https://pwdlib.readthedocs.io/) + [Argon2id](https://en.wikipedia.org/wiki/Argon2) (Algoritmo de criptografia de senhas recomendado pela OWASP)
-- **Validation**: [Pydantic v2](https://docs.pydantic.dev/)
+- **AI & Embeddings**: [Ollama](https://ollama.com/) rodando o modelo `nomic-embed-text` via [LlamaIndex](https://www.llamaindex.ai/)
+- **PDF Processing**: `pypdfium2` para extração rápida de texto
+- **Security & Auth**: [pwdlib](https://pwdlib.readthedocs.io/) + [Argon2id](https://en.wikipedia.org/wiki/Argon2) (Hashing recomendado pela OWASP) e [PyJWT](https://pyjwt.readthedocs.io/) (Autenticação via Bearer Tokens)
+- **Validation**: [Pydantic v2](https://docs.pydantic.dev/) & `pydantic-settings`
 - **Containerization**: [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
-- **Tests**: [Pytest](https://docs.pytest.org/) & [HTTPX](https://www.python-httpx.org/) (Para testes automatizados de integração)
+- **Tests**: [Pytest](https://docs.pytest.org/) & [HTTPX](https://www.python-httpx.org/) (Para testes de integração)
 
 ---
 
-## 🏛️ Arquitetura do Projeto
+## 🏛️ Arquitetura e Pipeline de Processamento
 
-O backend está estruturado seguindo os princípios de **Clean Architecture** (Arquitetura Limpa) e **Separation of Concerns** (Separação de Responsabilidades):
+A aplicação adota uma arquitetura em camadas (**Routes $\rightarrow$ Services $\rightarrow$ Repositories $\rightarrow$ Models**), garantindo separação de responsabilidades e facilitando a manutenção.
+
+### Pipeline Assíncrono de Ingestão de Documentos
+
+Ao realizar o upload de um PDF, a API responde imediatamente com status `202 Accepted` e orquestra o processamento em segundo plano (`BackgroundTasks`):
 
 ```mermaid
-graph TD
-    A[API / Routes] -->|Valida dados com Schemas| B(Services / Business Logic)
-    B -->|Persiste e busca dados com| C(Repositories)
-    C -->|Manipula as entidades do| D[SQLAlchemy Models]
-    D -->|Executa no banco com| E[(PostgreSQL)]
+flowchart TD
+    Client[Cliente HTTP] -->|1. POST /documents/upload| API[Routes / API Layer]
+    API -->|2. Valida & Salva PDF| DocService[DocumentService]
+    DocService -->|3. Status: RECEIVED| DB[(PostgreSQL)]
+    API -->|4. Resposta 202 Accepted| Client
+    
+    API -.->|5. Agenda BackgroundTask| Pipeline[Pipeline de IA]
+    
+    subgraph Pipeline [Processamento em Segundo Plano]
+        Parsing[ParsingService] -->|Extrai texto pypdfium2| Chunking[ChunkingService]
+        Chunking -->|Sliding Window 1000/200| Embedding[EmbeddingService]
+        Embedding -->|Gera vetores via Ollama| Storage[(pgvector / DB)]
+    end
 ```
 
-### Estrutura de Diretórios e Arquivos
+---
 
-Abaixo está a descrição detalhada das responsabilidades de cada diretório e arquivo na estrutura atual:
+## 📂 Estrutura de Diretórios
 
 ```bash
 backend/
 ├── app/
-│   ├── main.py              # Porta de entrada da aplicação. Inicializa o FastAPI, define rotas principais e lifespan.
-│   ├── agents/              # Agentes cognitivos (ex: LangGraph) para interação inteligente com documentos.
-│   ├── api/                 # Camada de apresentação da API (End-points/Routers).
-│   │   └── routes_users.py  # Endpoints de gerenciamento e cadastro de usuários.
-│   ├── core/                # Configurações globais e utilitários de segurança.
-│   │   ├── config.py        # Validação de variáveis de ambiente com Pydantic Settings.
-│   │   └── security.py      # Lógica de hashing e validação de senhas com Argon2id.
-│   ├── database/            # Configurações do Banco de Dados e Modelos ORM (SQLAlchemy).
-│   │   ├── base.py          # Classe declarativa base para o mapeamento das tabelas.
-│   │   ├── connection.py    # Configuração do engine e fábrica de conexões SessionLocal.
-│   │   ├── dependencies.py  # Injetor de dependência get_db para gerenciar sessões do PostgreSQL.
-│   │   └── models/          # Entidades físicas do banco de dados (ex: user.py).
-│   ├── repositories/        # Camada de persistência (Padrão Repository).
-│   │   └── user_repository.py # Encapsula operações de banco (SQL queries) para a tabela de usuários.
-│   ├── schemas/             # Validação e serialização de dados de entrada/saída (Pydantic).
-│   │   └── user_schema.py   # Schemas Pydantic para validação das requisições de usuário (UserCreate, UserResponse).
-│   ├── services/            # Camada de regras de negócio (Business Logic).
-│   │   └── user_service.py  # Gerencia a lógica de cadastro (valida e-mail duplicado, encripta senhas).
-│   └── tests/               # Suíte de testes com Pytest.
-│       ├── conftest.py      # Fixtures do Pytest para isolamento e ciclo de vida do banco de dados de teste.
-│       ├── test_user_api.py # Testes de integração de endpoints de API.
-│       ├── test_user_repository.py # Testes de integração diretos na camada Repository.
-│       └── test_user_service.py # Testes unitários e de integração de regras de negócio na Service.
-├── dockerfile               # Dockerfile otimizado para Python Slim.
+│   ├── main.py              # Bootstrap da aplicação e extensão pgvector.
+│   ├── api/                 # Camada de apresentação da API (Controllers/Routers).
+│   │   ├── routes_auth.py   # Auth, Login e geração de JWT.
+│   │   ├── routes_users.py  # Gestão e cadastro de usuários.
+│   │   └── routes_documents.py # Upload e gestão de documentos.
+│   ├── core/                # Configurações globais, segurança e JWT.
+│   ├── database/            # Conexão, sessão e modelos ORM.
+│   │   └── models/          # Entidades físicas (User, Document, DocumentChunk).
+│   ├── repositories/        # Camada de persistência (UserRepository, DocumentRepository).
+│   ├── schemas/             # Validação e DTOs (Pydantic v2).
+│   ├── services/            # Camada de regras de negócio e serviços de IA.
+│   │   ├── user_service.py      # Lógica de cadastro e validações de usuário.
+│   │   ├── document_service.py  # Gestão de arquivos e metadados.
+│   │   ├── parsing_service.py   # Extração de texto de PDFs.
+│   │   ├── chunking_service.py  # Segmentação de texto em vetores.
+│   │   └── embedding_service.py # Integração com Ollama para geração de embeddings.
+│   └── tests/               # Suíte de testes automatizados com banco isolado.
+├── dockerfile               # Imagem Python 3.13-slim otimizada.
+├── docker-compose.yml       # Stack completa (API, PostgreSQL+pgvector, Ollama + init).
 └── pytest.ini               # Configurações do Pytest.
 ```
 
 ---
 
-## ⚙️ Instalação e Execução
+## ⚙️ Execução e Infraestrutura
 
 ### Pré-requisitos
-- Docker instalado na sua máquina.
+- **Docker** e **Docker Compose** instalados.
 
-### Executando a Aplicação
-Para subir todo o ambiente de desenvolvimento (Banco de dados PostgreSQL + API FastAPI) rodando em segundo plano:
+### Subindo o Ambiente Completo
+O ambiente Docker já contempla a API, o banco PostgreSQL com `pgvector` e o serviço `Ollama` com o modelo de embeddings pré-carregado via *init-container*:
 
 ```bash
 docker compose up -d --build
 ```
 
-A API estará disponível em: [http://localhost:8000](http://localhost:8000)
-A documentação interativa da API (Swagger UI) pode ser acessada em: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **API Base URL**: `http://localhost:8000`
+- **Documentação Swagger**: `http://localhost:8000/docs`
+- **Ollama Engine**: `http://localhost:11434`
 
 ---
 
-## 🧪 Suíte de Testes Automatizados
+## 🧪 Testes Automatizados
 
-O projeto utiliza um banco de dados PostgreSQL isolado dedicado apenas para testes, garantindo que a base de dados de desenvolvimento/produção nunca seja poluída ou corrompida.
+O ambiente de testes roda com um banco PostgreSQL isolado em container dedicado, garantindo o isolamento da base de dados local/dev.
 
-### 1. Iniciar o Banco de Testes
 ```bash
+# 1. Subir o container exclusivo de testes
 docker compose -f docker-compose.test.yml up -d
-```
 
-### 2. Executar os Testes (Pytest)
-Com o ambiente virtual ativado (`.venv`), execute:
-
-```bash
+# 2. Executar a suíte com Pytest
 pytest
 ```
 
 ---
 
-## 🔒 Boas Práticas e Segurança Aplicadas
+## 🔒 Boas Práticas e Segurança
 
-- **Gestão de Segredos**: Nenhuma chave ou credencial é exposta no código. Todas as configurações críticas são lidas a partir de arquivos `.env` validados estritamente via `pydantic-settings`.
-- **Deduplicação de Código (DRY)**: As rotas compartilham injeções de dependência de ciclo de vida de banco de dados (`get_db`) localizadas centralizadamente.
-- **Teardown e Isolamento de Testes**: As fixtures do Pytest criam tabelas limpas para cada teste e as destroem ao final (`drop_all`), impedindo poluição de estado entre os testes.
-- **Hashing Criptográfico Robusto**: Senhas de usuários não são salvas no banco de dados; apenas seus hashes gerados usando o algoritmo **Argon2id** (com salt e fatores de custo dinâmicos).
+- **Hashing Avançado**: Uso de **Argon2id** com salt dinâmico para armazenamento seguro de credenciais.
+- **Isolamento de Dados (Multi-tenancy)**: Verificação rigorosa de *ownership* em todas as rotas de documentos (usuários acessam apenas seus próprios arquivos).
+- **Processamento Não-Bloqueante**: Utilização de `BackgroundTasks` para extração de texto e geração de embeddings sem travar o worker HTTP principal.
+- **Persistência Vetorial**: Estruturação dos chunks de documentos em vetores de 768 dimensões com suporte nativo do `pgvector`.
