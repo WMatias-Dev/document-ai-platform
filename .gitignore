@@ -28,7 +28,7 @@ htmlcov/
 
 # Database / Local data
 
-.docs
+/docs
 *.sqlite
 *.sqlite3
 *.db
@@ -43,3 +43,5 @@ htmlcov/
 # Docker
 docker-compose.override.yml
 docker-compose.local.yml
+
+/graphify-out
