@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
 
+    # Configurações do Ollama (Embeddings e LLM)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+    OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ENV_FILE,
         extra="ignore",
