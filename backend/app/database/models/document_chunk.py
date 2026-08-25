@@ -16,11 +16,6 @@ class DocumentChunk(Base):
         index=True
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
-    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    text_content: Mapped[str] = mapped_column(Text, nullable=False)
-
     # Chave estrangeira ligando ao documento pai
     document_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("documents.id", ondelete="CASCADE"), 
@@ -33,7 +28,7 @@ class DocumentChunk(Base):
     # O fragmento de texto em si
     text_content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    #COLUNA VETORIAL (nomic-embed-text gera 768 dimensões)
+    # COLUNA VETORIAL (nomic-embed-text gera 768 dimensões)
     embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=True)
 
     # Relacionamento ORM bidirecional
