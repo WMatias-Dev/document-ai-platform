@@ -1,7 +1,8 @@
 import logging
 import uuid
-from typing import List
+from typing import Callable, List, Optional
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session
 
 from app.database.models.document import Document, DocumentStatus
 from app.database.models.user import User
@@ -23,12 +24,14 @@ class DocumentService:
         parser: ParsingService,
         chunker: ChunkingService,
         embedder: EmbeddingService,
+        session_factory: Optional[Callable[[], Session]] = None,
     ):
         self.repository = repository
         self.storage = storage
         self.parser = parser
         self.chunker = chunker
         self.embedder = embedder
+        self.session_factory = session_factory
 
     async def process_upload(
         self,
@@ -78,20 +81,25 @@ class DocumentService:
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
         """
         Orquestra o pipeline completo em background: Parsing -> Chunking -> Embedding
+        utilizando uma sessão isolada de banco de dados.
         """
+        db = self.session_factory() if self.session_factory else None
+        repo = DocumentRepository(db) if db else self.repository
+        embedder = EmbeddingService(repository=repo) if db else self.embedder
+
         try:
             # 1. PARSING: Extrai o texto do PDF
-            self.repository.update_status(document_id, DocumentStatus.PARSING)
+            repo.update_status(document_id=document_id, status=DocumentStatus.PARSING)
             extracted_text = self.parser.extract_text(file_path)
 
-            self.repository.update_document_content(
+            repo.update_document_content(
                 document_id=document_id,
                 content=extracted_text,
                 status=DocumentStatus.PARSING,
             )
 
             # 2. CHUNKING: Transforma o texto em pedaços e persiste no banco
-            self.repository.update_status(document_id, DocumentStatus.CHUNKING)
+            repo.update_status(document_id=document_id, status=DocumentStatus.CHUNKING)
             raw_chunks = self.chunker.chunk_text(extracted_text)
 
             # Formata os chunks para persistência no repositório
@@ -103,23 +111,31 @@ class DocumentService:
                 }
                 for idx, chunk in enumerate(raw_chunks)
             ]
-            self.repository.create_chunks(chunks_data)
+            repo.create_chunks(chunks_data)
 
             # 3. EMBEDDING: Gera os vetores semânticos para cada chunk
-            if hasattr(self.embedder, "process_document"):
-                self.embedder.process_document(document_id)
+            if hasattr(embedder, "process_document"):
+                embedder.process_document(document_id)
 
             # 4. FINALIZAÇÃO
-            self.repository.update_status(document_id, DocumentStatus.COMPLETED)
+            repo.update_status(document_id=document_id, status=DocumentStatus.COMPLETED)
 
         except Exception as e:
             logger.error(
                 f"Erro no pipeline do documento {document_id}: {e}", exc_info=True
             )
-            self.repository.update_status(
-                document_id=document_id,
-                status=DocumentStatus.ERROR,
-            )
+            try:
+                repo.update_status(
+                    document_id=document_id,
+                    status=DocumentStatus.ERROR,
+                )
+            except Exception as update_err:
+                logger.error(
+                    f"Falha ao atualizar status para ERROR no documento {document_id}: {update_err}"
+                )
+        finally:
+            if db is not None:
+                db.close()
 
     def create_document(
         self, document_in: DocumentCreate, current_user: User

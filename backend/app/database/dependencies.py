@@ -71,8 +71,6 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
     storage = StorageService()
     parser = ParsingService()
     chunker = ChunkingService()
-    
-    # Adicione a variável 'repository' na inicialização do EmbeddingService
     embedder = EmbeddingService(repository=repository)
 
     return DocumentService(
@@ -81,4 +79,5 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
         parser=parser,
         chunker=chunker,
         embedder=embedder,
+        session_factory=SessionLocal,
     )

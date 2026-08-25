@@ -43,18 +43,30 @@ TestingSessionLocal = sessionmaker(
 )
 
 
+from app.database.dependencies import get_db
+
+
 @pytest.fixture(scope="function")
 def db_session():
-    """Cria uma sessão limpa para cada teste."""
+    """Cria uma sessão limpa para cada teste e configura o override de get_db."""
 
     Base.metadata.create_all(bind=engine_test)
 
     session = TestingSessionLocal()
 
+    def override_get_db():
+        try:
+            yield session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
     try:
         yield session
     finally:
         session.close()
+        app.dependency_overrides.clear()
         Base.metadata.drop_all(bind=engine_test)
 
 
@@ -62,8 +74,8 @@ def db_session():
 def client():
     """Cliente HTTP para testar a API."""
 
-    with TestClient(app) as client:
-        yield client
+    with TestClient(app) as test_client:
+        yield test_client
 
 @pytest.fixture(scope="function")
 def user_token_headers(client):
