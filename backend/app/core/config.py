@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
     OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
 
+    # Configurações do Google Gemini API
+    GOOGLE_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-3.7-flash"
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ENV_FILE,
         extra="ignore",
