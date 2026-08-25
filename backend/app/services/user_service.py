@@ -10,7 +10,6 @@ class UserService:
     ):
         self.repository = repository
 
-    # Agora o método está indentado dentro da classe UserService
     def create_user(
         self,
         user_data: UserCreate,

@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import String
-from sqlalchemy.dialects.postgresql import UUID # Importante para o banco saber o tipo exato
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base

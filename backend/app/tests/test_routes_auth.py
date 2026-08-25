@@ -54,17 +54,14 @@ def test_login_nonexistent_user(client):
 
 
 def test_get_user_me_success(db_session, client):
-    """Testa a rota protegida enviando um token válido"""
     create_test_user(db_session)
     
-    # 1. Faz o login para obter o token
     login_response = client.post(
         "/auth/login",
         data={"username": "teste@auth.com", "password": "senha_segura"}
     )
     token = login_response.json()["access_token"]
     
-    # 2. Acessa a rota protegida passando o token no Header
     response = client.get(
         "/auth/me",
         headers={"Authorization": f"Bearer {token}"}

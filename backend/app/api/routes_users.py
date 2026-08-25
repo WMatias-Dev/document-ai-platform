@@ -12,12 +12,11 @@ router = APIRouter(
     tags=["Users"]
 )
 
-# 1. Injeção do Repository e Service acoplados à sessão
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
     repository = UserRepository(db)
     return UserService(repository)
 
-# 3. Rota limpa usando apenas o serviço
+
 @router.post(
     "/register",
     response_model=UserResponse

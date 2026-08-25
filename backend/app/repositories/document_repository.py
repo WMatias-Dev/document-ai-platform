@@ -12,7 +12,6 @@ class DocumentRepository:
         self.db = db
 
     def create(self, document_in: DocumentCreate, owner_id: uuid.UUID) -> Document:
-        """Cria um novo registro de documento no banco de dados."""
         db_document = Document(
             title=document_in.title,
             content=getattr(document_in, "content", None),
@@ -37,7 +36,6 @@ class DocumentRepository:
         self.db.commit()
 
     def create_uploaded_document(self, document_data: dict) -> Document:
-        """Salva os metadados do documento recém-upado no banco de dados via dicionário."""
         db_document = Document(**document_data)
         self.db.add(db_document)
         self.db.commit()
@@ -45,7 +43,6 @@ class DocumentRepository:
         return db_document
 
     def update_status(self, document_id: uuid.UUID, status: DocumentStatus) -> None:
-        """Atualiza apenas o status de processamento do documento."""
         document = self.get_by_id(document_id)
         if document:
             document.status = status
@@ -55,7 +52,6 @@ class DocumentRepository:
     def update_document_content(
         self, document_id: uuid.UUID, content: Optional[str], status: DocumentStatus
     ) -> None:
-        """Atualiza o texto extraído e o status final ao mesmo tempo."""
         document = self.get_by_id(document_id)
         if document:
             document.content = content
@@ -64,13 +60,11 @@ class DocumentRepository:
             self.db.refresh(document)
 
     def create_chunks(self, chunks_data: List[Dict[str, Any]]) -> None:
-        """Insere todos os chunks no banco via Bulk Insert."""
         chunks = [DocumentChunk(**data) for data in chunks_data]
         self.db.add_all(chunks)
         self.db.commit()
 
     def get_chunks_by_document(self, document_id: uuid.UUID) -> List[DocumentChunk]:
-        """Busca todos os chunks de um documento específico."""
         return (
             self.db.query(DocumentChunk)
             .filter(DocumentChunk.document_id == document_id)
@@ -78,7 +72,6 @@ class DocumentRepository:
         )
 
     def save_chunks(self, chunks: List[DocumentChunk]) -> None:
-        """Confirma as alterações feitas nos objetos de chunks (como inclusão de vetores)."""
         self.db.add_all(chunks)
         self.db.commit()
 

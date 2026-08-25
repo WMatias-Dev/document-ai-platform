@@ -11,11 +11,8 @@ from fastapi import (
     BackgroundTasks,
 )
 
-# Dependências unificadas de banco, autenticação e serviços
 from app.database.dependencies import get_current_user, get_document_service
 from app.database.models.user import User
-
-# Schemas e Serviços
 from app.schemas.document_schema import (
     DocumentCreate,
     DocumentResponse,
@@ -41,25 +38,18 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
     document_service: DocumentService = Depends(get_document_service),
 ):
-    """
-    Recebe um arquivo PDF, valida os metadados, persiste o arquivo físico
-    e dispara o pipeline de processamento (Parsing, Chunking e Embedding) em background.
-    """
-    # 1. Validação do tipo de arquivo
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Apenas arquivos PDF são permitidos.",
         )
 
-    # 2. Validação do nome do arquivo
     if file.filename is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Nome do arquivo não informado.",
         )
 
-    # 3. Validação do tamanho do arquivo
     if file.size is not None:
         if file.size > MAX_FILE_SIZE:
             raise HTTPException(
@@ -76,7 +66,6 @@ async def upload_document(
                 detail=f"O arquivo excede o limite de {MAX_FILE_SIZE / (1024 * 1024):.0f} MB.",
             )
 
-    # 4. Delega o salvamento e o disparo da task em background para o DocumentService
     return await document_service.process_upload(
         file=file,
         owner_id=current_user.id,

@@ -15,15 +15,10 @@ class ChunkingService:
         self.overlap = overlap
         self.min_chunk_size = min_chunk_size
 
-        # Validação de sanidade: o overlap nunca pode ser maior que o próprio chunk
         if self.overlap >= self.chunk_size:
             raise ValueError("O overlap deve ser menor que o tamanho do chunk.")
 
     def chunk_text(self, text: str) -> List[str]:
-        """
-        Divide o texto extraído em pedaços menores mantendo o contexto
-        através de sobreposição (overlap), sem perda de conteúdo residual.
-        """
         cleaned_text = text.strip() if text else ""
         if not cleaned_text:
             logger.warning("Texto vazio recebido para chunking.")
@@ -35,14 +30,12 @@ class ChunkingService:
 
         text_length = len(cleaned_text)
 
-        # Se o texto for menor ou igual ao tamanho do chunk, retorna o texto em um único chunk
         if text_length <= self.chunk_size:
             return [cleaned_text]
 
         chunks: List[str] = []
         start = 0
 
-        # Estratégia de Janela Deslizante
         while start < text_length:
             end = start + self.chunk_size
             chunk = cleaned_text[start:end]

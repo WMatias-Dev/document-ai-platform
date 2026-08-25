@@ -8,8 +8,6 @@ from app.database.connection import SessionLocal
 from app.database.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.repositories.document_repository import DocumentRepository
-
-# Serviços
 from app.services.storage_service import StorageService
 from app.services.parsing_service import ParsingService
 from app.services.chunking_service import ChunkingService
@@ -17,7 +15,6 @@ from app.services.embedding_service import EmbeddingService
 from app.services.document_service import DocumentService
 
 
-# 1. Gerenciamento de Sessão de Banco de Dados
 def get_db():
     db = SessionLocal()
     try:
@@ -26,14 +23,13 @@ def get_db():
         db.close()
 
 
-# 2. Autenticação e Segurança JWT
 oauth_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
 
 def get_current_user(
     token: str = Depends(oauth_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    """Decodifica o token JWT, valida o payload e recupera o usuário logado."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Não foi possível validar as credenciais.",
@@ -62,11 +58,7 @@ def get_current_user(
     return user
 
 
-# 3. Factory / Injeção de Dependência do DocumentService
 def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
-    """
-    Instancia o DocumentService injetando o repositório e todos os serviços necessários.
-    """
     repository = DocumentRepository(db)
     storage = StorageService()
     parser = ParsingService()
