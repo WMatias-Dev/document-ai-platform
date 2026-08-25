@@ -3,20 +3,17 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
-# 1. Classe Base: Agrupa os campos comuns
 class DocumentBase(BaseModel):
     title: str
     content: Optional[str] = None
 
 
-# 2. Schema de Criação: Inclui dados do arquivo físico e metadados de armazenamento
 class DocumentCreate(DocumentBase):
     filename: str
     file_path: Optional[str] = None
     content_type: Optional[str] = "application/pdf"
 
 
-# 3. Schema de Resposta para Leitura Completa
 class DocumentResponse(DocumentBase):
     id: uuid.UUID
     owner_id: uuid.UUID
@@ -28,7 +25,6 @@ class DocumentResponse(DocumentBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# 4. Schema de Resposta do Upload Async
 class DocumentUploadResponse(BaseModel):
     id: uuid.UUID
     filename: str
@@ -36,7 +32,6 @@ class DocumentUploadResponse(BaseModel):
     message: str
 
 
-# 5. Schemas para Busca Semântica (Vector Retrieval)
 class DocumentSearchRequest(BaseModel):
     query: str
     document_id: Optional[uuid.UUID] = None

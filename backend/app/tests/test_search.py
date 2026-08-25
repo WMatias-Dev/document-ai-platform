@@ -35,7 +35,6 @@ def test_search_documents_success_flow():
 
     current_user = User(id=user_id, name="Usuário", email="user@test.com", password_hash="hash")
 
-    # Mock chunk e documento associado
     fake_doc = Document(id=doc_id, title="Contrato de Prestação de Serviços.pdf", owner_id=user_id)
     fake_chunk = DocumentChunk(
         id=chunk_id,
@@ -45,7 +44,6 @@ def test_search_documents_success_flow():
         document=fake_doc,
     )
 
-    # 0.1 de distância = 0.9 de similaridade
     mock_embedder.generate_query_embedding.return_value = [0.1] * 768
     mock_repo.similarity_search.return_value = [(fake_chunk, 0.9)]
 

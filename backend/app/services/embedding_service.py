@@ -22,9 +22,6 @@ class EmbeddingService:
         )
 
     def process_document(self, document_id: uuid.UUID) -> None:
-        """
-        Gera os embeddings vetoriais para todos os chunks de um documento.
-        """
         self.repository.update_status(document_id, DocumentStatus.EMBEDDING)
 
         try:
@@ -47,9 +44,6 @@ class EmbeddingService:
             raise
 
     def generate_query_embedding(self, query_text: str) -> List[float]:
-        """
-        Gera o vetor de embedding para uma consulta em linguagem natural.
-        """
         if not query_text or not query_text.strip():
             raise ValueError("Texto de consulta não pode ser vazio.")
 

@@ -85,15 +85,14 @@ class DocumentService:
 
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
         """
-        Orquestra o pipeline completo em background: Parsing -> Chunking -> Embedding
-        utilizando uma sessão isolada de banco de dados.
+        Orquestra o pipeline em background (parsing, chunking, embeddings).
+        Usa uma sessão dedicada caso instanciada com session_factory.
         """
         db = self.session_factory() if self.session_factory else None
         repo = DocumentRepository(db) if db else self.repository
         embedder = EmbeddingService(repository=repo) if db else self.embedder
 
         try:
-            # 1. PARSING: Extrai o texto do PDF
             repo.update_status(document_id=document_id, status=DocumentStatus.PARSING)
             extracted_text = self.parser.extract_text(file_path)
 
@@ -103,11 +102,9 @@ class DocumentService:
                 status=DocumentStatus.PARSING,
             )
 
-            # 2. CHUNKING: Transforma o texto em pedaços e persiste no banco
             repo.update_status(document_id=document_id, status=DocumentStatus.CHUNKING)
             raw_chunks = self.chunker.chunk_text(extracted_text)
 
-            # Formata os chunks para persistência no repositório
             chunks_data = [
                 {
                     "document_id": document_id,
@@ -118,11 +115,9 @@ class DocumentService:
             ]
             repo.create_chunks(chunks_data)
 
-            # 3. EMBEDDING: Gera os vetores semânticos para cada chunk
             if hasattr(embedder, "process_document"):
                 embedder.process_document(document_id)
 
-            # 4. FINALIZAÇÃO
             repo.update_status(document_id=document_id, status=DocumentStatus.COMPLETED)
 
         except Exception as e:
@@ -179,17 +174,11 @@ class DocumentService:
     def search_documents(
         self, search_in: DocumentSearchRequest, current_user: User
     ) -> DocumentSearchResponse:
-        """
-        Executa busca semântica por similaridade vetorial nos documentos do usuário.
-        """
         if search_in.document_id:
-            # Valida se o documento existe e pertence ao usuário
             self.get_document(search_in.document_id, current_user)
 
-        # 1. Gera o embedding da consulta
         query_embedding = self.embedder.generate_query_embedding(search_in.query)
 
-        # 2. Busca os chunks mais similares no banco
         raw_results = self.repository.similarity_search(
             query_embedding=query_embedding,
             user_id=current_user.id,
@@ -197,7 +186,6 @@ class DocumentService:
             limit=search_in.limit,
         )
 
-        # 3. Mapeia para o schema de resposta
         results = [
             SearchResultChunk(
                 chunk_id=chunk.id,

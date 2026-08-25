@@ -39,18 +39,10 @@ class DocumentAgent:
         self.ai_service = ai_service or AIService()
 
     def ask(self, request: ChatRequest, current_user: User) -> ChatResponse:
-        """
-        Executa o pipeline RAG:
-        1. Recupera os trechos mais relevantes via busca vetorial.
-        2. Monta o contexto enriquecido e o histórico conversacional.
-        3. Invoca o Gemini 3.7 Flash para síntese da resposta.
-        4. Retorna a resposta acompanhada das citações das fontes.
-        """
         logger.info(
             f"[DocumentAgent] Pergunta recebida do usuário {current_user.email}: '{request.message}'"
         )
 
-        # 1. Recuperação Semântica (Vector Retrieval)
         search_request = DocumentSearchRequest(
             query=request.message,
             document_id=request.document_id,
@@ -74,7 +66,6 @@ class DocumentAgent:
             for item in search_response.results
         ]
 
-        # 2. Montagem do Contexto Documental
         if citations:
             context_blocks = []
             for i, cite in enumerate(citations, 1):
@@ -87,16 +78,14 @@ class DocumentAgent:
         else:
             context_text = "Nenhum trecho de documento relevante foi encontrado para esta consulta."
 
-        # 3. Formatação do Histórico Conversacional
         history_text = ""
         if request.history:
             formatted_history = []
-            for msg in request.history[-6:]:  # Considera as últimas 6 mensagens
+            for msg in request.history[-6:]:
                 role_name = "Usuário" if msg.role == "user" else "Assistente"
                 formatted_history.append(f"{role_name}: {msg.content}")
             history_text = "Histórico da Conversa:\n" + "\n".join(formatted_history) + "\n\n"
 
-        # 4. Construção do Prompt Completo
         full_prompt = (
             f"Contexto dos Documentos:\n{context_text}\n\n"
             f"{history_text}"
@@ -104,7 +93,6 @@ class DocumentAgent:
             f"Resposta:"
         )
 
-        # 5. Geração de Resposta com Gemini 3.7 Flash
         answer = self.ai_service.generate_response(
             prompt=full_prompt,
             system_instruction=SYSTEM_PROMPT,
