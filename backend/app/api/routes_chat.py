@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.document_agent import DocumentAgent
 from app.database.dependencies import get_current_user, get_document_service
@@ -31,8 +31,15 @@ def chat_with_documents(
     agent: DocumentAgent = Depends(get_document_agent),
 ):
     """
-    Envia uma mensagem para o assistente de IA (Gemini 3.7 Flash).
+    Envia uma mensagem para o assistente de IA (Gemini).
     O assistente busca trechos relevantes nos PDFs do usuário, sintetiza
     uma resposta fundamentada e retorna os links/citações das fontes.
     """
-    return agent.ask(request=request, current_user=current_user)
+    try:
+        return agent.ask(request=request, current_user=current_user)
+    except Exception as e:
+        logger.error(f"Erro no processamento do chat RAG: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro no processamento da IA: {str(e)}",
+        )

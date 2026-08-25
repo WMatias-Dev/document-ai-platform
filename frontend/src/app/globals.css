@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+:root {
+  --background: #131314;
+  --foreground: #e3e3e3;
+  --surface: #1e1f20;
+  --surface-elevated: #282a2c;
+  --surface-hover: #333538;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --primary: #a8c7fa;
+  --primary-container: #0842a0;
+  --accent: #c2e7ff;
+  --muted: #8e918f;
+  --card: #1e1f20;
+}
+
+body {
+  background-color: #131314;
+  color: #e3e3e3;
+  font-family: -apple-system, BlinkMacSystemFont, "Google Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  user-select: text;
+}
+
+/* NotebookLM custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #37393b;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4e5053;
+}

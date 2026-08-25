@@ -25,3 +25,7 @@ htmlcov/
 *.db
 
 backend/uploads/
+uploads/
+frontend/
+node_modules/
+.next/

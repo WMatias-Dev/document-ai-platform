@@ -36,6 +36,8 @@ async def lifespan(app: FastAPI):
     yield
 
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="Plataforma IA para Documentos",
     description="Sistema Inteligente de gestão documental com IA Generativa",
@@ -43,7 +45,24 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# registro de rotas
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002",
+        "http://192.168.1.4:3000",
+        "http://192.168.1.4:3001",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|0\.0\.0\.0)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(documents_router)
