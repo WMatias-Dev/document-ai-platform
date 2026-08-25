@@ -34,3 +34,27 @@ class DocumentUploadResponse(BaseModel):
     filename: str
     status: str
     message: str
+
+
+# 5. Schemas para Busca Semântica (Vector Retrieval)
+class DocumentSearchRequest(BaseModel):
+    query: str
+    document_id: Optional[uuid.UUID] = None
+    limit: int = 5
+
+
+class SearchResultChunk(BaseModel):
+    chunk_id: uuid.UUID
+    document_id: uuid.UUID
+    document_title: str
+    chunk_index: int
+    text_content: str
+    similarity_score: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentSearchResponse(BaseModel):
+    query: str
+    total_results: int
+    results: list[SearchResultChunk]

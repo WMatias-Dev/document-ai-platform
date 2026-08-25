@@ -81,3 +81,31 @@ class DocumentRepository:
         """Confirma as alterações feitas nos objetos de chunks (como inclusão de vetores)."""
         self.db.add_all(chunks)
         self.db.commit()
+
+    def similarity_search(
+        self,
+        query_embedding: List[float],
+        user_id: uuid.UUID,
+        document_id: Optional[uuid.UUID] = None,
+        limit: int = 5,
+    ) -> List[tuple[DocumentChunk, float]]:
+        """
+        Executa busca vetorial por similaridade de cosseno nos chunks
+        garantindo isolamento de ownership (pertencentes ao user_id).
+        Retorna uma lista de tuplas (DocumentChunk, score_de_similaridade).
+        """
+        distance_expr = DocumentChunk.embedding.cosine_distance(query_embedding).label("distance")
+
+        query = (
+            self.db.query(DocumentChunk, distance_expr)
+            .join(Document, Document.id == DocumentChunk.document_id)
+            .filter(Document.owner_id == user_id)
+            .filter(DocumentChunk.embedding.isnot(None))
+        )
+
+        if document_id:
+            query = query.filter(Document.id == document_id)
+
+        results = query.order_by(distance_expr.asc()).limit(limit).all()
+
+        return [(chunk, 1.0 - float(dist)) for chunk, dist in results]

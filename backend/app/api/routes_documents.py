@@ -19,6 +19,8 @@ from app.database.models.user import User
 from app.schemas.document_schema import (
     DocumentCreate,
     DocumentResponse,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
 )
 from app.services.document_service import DocumentService
 
@@ -129,5 +131,25 @@ def delete_document(
 ):
     service.delete_document(
         document_id=document_id,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/search",
+    response_model=DocumentSearchResponse,
+    summary="Busca semântica por similaridade vetorial nos documentos",
+)
+def search_documents(
+    search_in: DocumentSearchRequest,
+    current_user: User = Depends(get_current_user),
+    service: DocumentService = Depends(get_document_service),
+):
+    """
+    Realiza busca vetorial por similaridade semântica utilizando o embedding da pergunta.
+    Garante isolamento de dados: o usuário só recebe trechos dos seus próprios documentos.
+    """
+    return service.search_documents(
+        search_in=search_in,
         current_user=current_user,
     )
