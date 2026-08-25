@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 from app.database.models.document import Document, DocumentStatus
 from app.database.models.user import User
 from app.repositories.document_repository import DocumentRepository
-from app.schemas.document_schema import DocumentCreate
+from app.schemas.document_schema import (
+    DocumentCreate,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
+    SearchResultChunk,
+)
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.parsing_service import ParsingService
@@ -170,3 +175,43 @@ class DocumentService:
 
         self.repository.delete(document)
         logger.info(f"[Documento {document_id}] Apagado com sucesso.")
+
+    def search_documents(
+        self, search_in: DocumentSearchRequest, current_user: User
+    ) -> DocumentSearchResponse:
+        """
+        Executa busca semântica por similaridade vetorial nos documentos do usuário.
+        """
+        if search_in.document_id:
+            # Valida se o documento existe e pertence ao usuário
+            self.get_document(search_in.document_id, current_user)
+
+        # 1. Gera o embedding da consulta
+        query_embedding = self.embedder.generate_query_embedding(search_in.query)
+
+        # 2. Busca os chunks mais similares no banco
+        raw_results = self.repository.similarity_search(
+            query_embedding=query_embedding,
+            user_id=current_user.id,
+            document_id=search_in.document_id,
+            limit=search_in.limit,
+        )
+
+        # 3. Mapeia para o schema de resposta
+        results = [
+            SearchResultChunk(
+                chunk_id=chunk.id,
+                document_id=chunk.document_id,
+                document_title=chunk.document.title if chunk.document else "",
+                chunk_index=chunk.chunk_index,
+                text_content=chunk.text_content,
+                similarity_score=round(score, 4),
+            )
+            for chunk, score in raw_results
+        ]
+
+        return DocumentSearchResponse(
+            query=search_in.query,
+            total_results=len(results),
+            results=results,
+        )

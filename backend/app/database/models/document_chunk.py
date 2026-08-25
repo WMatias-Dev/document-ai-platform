@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Text, ForeignKey, Integer
+from sqlalchemy import Text, ForeignKey, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -33,3 +33,13 @@ class DocumentChunk(Base):
 
     # Relacionamento ORM bidirecional
     document = relationship("Document", back_populates="chunks")
+
+    __table_args__ = (
+        Index(
+            "ix_document_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )

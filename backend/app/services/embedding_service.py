@@ -45,3 +45,16 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Erro ao gerar embeddings para doc {document_id}: {e}", exc_info=True)
             raise
+
+    def generate_query_embedding(self, query_text: str) -> List[float]:
+        """
+        Gera o vetor de embedding para uma consulta em linguagem natural.
+        """
+        if not query_text or not query_text.strip():
+            raise ValueError("Texto de consulta não pode ser vazio.")
+
+        try:
+            return self.embed_model.get_query_embedding(query_text.strip())
+        except Exception as e:
+            logger.error(f"Erro ao gerar embedding da consulta: {e}", exc_info=True)
+            raise RuntimeError(f"Falha ao gerar vetor para busca: {str(e)}")
