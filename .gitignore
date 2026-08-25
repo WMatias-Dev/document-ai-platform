@@ -5,43 +5,37 @@ __pycache__/
 *.pyd
 .Python
 
-# Virtual
+# Virtual Environments
 env/
 venv/
 .venv/
 
-
-# Environment / Secrets
-
+# Environment / Secrets (Protected)
 .env
-.env.local
-.env.production
-.flaskenv
-
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
 
 # Testing / Coverage
-
 .pytest_cache/
 .coverage
 htmlcov/
 
-
 # Database / Local data
-
-/docs
 *.sqlite
 *.sqlite3
 *.db
 /backend/uploads/
-
-
+uploads/
 
 # Logs
 *.log
-
 
 # Docker
 docker-compose.override.yml
 docker-compose.local.yml
 
 /graphify-out
+/docs

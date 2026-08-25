@@ -16,3 +16,4 @@ python-multipart
 pypdfium2
 llama-index-embeddings-ollama
 aiofiles
+google-genai
