@@ -42,7 +42,7 @@ Uma plataforma completa, moderna e escalável de **IA Documental e RAG (*Retriev
 
 O sistema aplica rigorosamente o padrão **Clean Architecture** em camadas desacopladas:
 
-$$\text{Client (Next.js 16)} \longleftrightarrow \text{API Controllers (FastAPI)} \longleftrightarrow \text{Agents \& Services} \longleftrightarrow \text{Repositories} \longleftrightarrow \text{Database (PostgreSQL + pgvector)}$$
+$$\text{Client (Next.js 16)} \longleftrightarrow \text{API Controllers (FastAPI)} \longleftrightarrow \text{Agents e Services} \longleftrightarrow \text{Repositories} \longleftrightarrow \text{Database (PostgreSQL + pgvector)}$$
 
 ```mermaid
 flowchart TB
