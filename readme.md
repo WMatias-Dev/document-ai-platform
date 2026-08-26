@@ -102,6 +102,59 @@ flowchart TB
 
 ## 💬 Ciclo de Vida do Chat com Streaming SSE (`/chat/stream`)
 
+### Fluxograma de Orquestração
+
+```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px' }}}%%
+flowchart TD
+    User(["Usuário / Frontend (Next.js)"])
+    API["FastAPI (DocumentAgent)"]
+
+    User -->|"1. POST /chat/stream"| API
+
+    %% 1. Recuperação de Contexto (RAG)
+    subgraph RAG ["1. Recuperação de Contexto"]
+        direction TB
+        GeminiEmb["AIService (Embeddings)"]
+        PgVector[("Vector Store (pgvector)")]
+        
+        API -->|"Gera embedding"| GeminiEmb
+        GeminiEmb -->|"query_vector"| API
+        API -->|"Busca HNSW (Top-K)"| PgVector
+        PgVector -->|"Chunks relevantes"| API
+    end
+
+    API -.->|"SSE: event citations"| User
+
+    %% 2. Geração e Streaming
+    subgraph Stream ["2. Geração da Resposta"]
+        direction TB
+        GeminiChat["AIService (Gemini Pool)"]
+        
+        API -->|"Prompt + Contexto"| GeminiChat
+        GeminiChat -->|"Token Stream"| API
+    end
+
+    API -.->|"SSE: event delta"| User
+
+    %% 3. Persistência
+    subgraph Persist ["3. Persistência"]
+        direction TB
+        Postgres[("ChatRepository (PostgreSQL)")]
+        
+        API -->|"Salva mensagem e fontes"| Postgres
+        Postgres -->|"Confirmação"| API
+    end
+
+    API -.->|"SSE: event done"| User
+
+    %% Estilos Minimalistas / Neutros
+    classDef default fill:#f9fafb,stroke:#374151,stroke-width:1px,color:#111827;
+    classDef sseLine stroke:#6b7280,stroke-width:1.5px,stroke-dasharray: 4 4;
+```
+
+### Diagrama de Sequência Detalhado
+
 ```mermaid
 sequenceDiagram
     autonumber
