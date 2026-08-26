@@ -1,5 +1,6 @@
 import uuid
-from typing import List, Literal, Optional
+from datetime import datetime
+from typing import Any, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -24,6 +25,9 @@ class DocumentCitation(BaseModel):
 class ChatRequest(BaseModel):
     """Requisição de pergunta para o Agente RAG."""
     message: str = Field(..., min_length=1, description="Pergunta ou mensagem do usuário.")
+    thread_id: Optional[uuid.UUID] = Field(
+        None, description="ID da thread de conversa existente. Se omitido, uma nova thread é criada ou vinculada ao notebook."
+    )
     notebook_id: Optional[uuid.UUID] = Field(
         None, description="Filtro opcional para consultar apenas documentos pertencentes a um caderno."
     )
@@ -50,3 +54,30 @@ class ChatResponse(BaseModel):
     answer: str
     citations: List[DocumentCitation]
     model: str
+    thread_id: Optional[uuid.UUID] = None
+
+
+class ChatMessageResponse(BaseModel):
+    """Representação persistida de uma mensagem de conversa com fontes."""
+    id: uuid.UUID
+    thread_id: uuid.UUID
+    role: str
+    content: str
+    citations: Optional[List[Any]] = None
+    model_used: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChatThreadResponse(BaseModel):
+    """Representação de uma conversa vinculada a um caderno ou avulsa."""
+    id: uuid.UUID
+    title: str
+    notebook_id: Optional[uuid.UUID] = None
+    owner_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    messages: Optional[List[ChatMessageResponse]] = None
+
+    model_config = ConfigDict(from_attributes=True)

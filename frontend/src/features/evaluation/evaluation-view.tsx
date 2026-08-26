@@ -27,6 +27,7 @@ import {
   Minus,
   Check,
   XCircle,
+  ShieldAlert,
 } from "lucide-react";
 
 export function getScoreColor(score?: number | null): string {
@@ -123,11 +124,20 @@ export function EvaluationView() {
     );
   };
 
-  // Quality Gates Logic
+  // Quality Gates Logic Rigorosa
   const qgRecall = typeof activeRun?.rag_quality.recall_at_5 === "number" ? activeRun.rag_quality.recall_at_5 >= 0.9 : null;
   const qgMrr = typeof activeRun?.rag_quality.mrr_at_5 === "number" ? activeRun.rag_quality.mrr_at_5 >= 0.85 : null;
   const qgFaith = typeof activeRun?.rag_quality.faithfulness === "number" ? activeRun.rag_quality.faithfulness >= 0.9 : null;
   const qgRel = typeof activeRun?.rag_quality.answer_relevancy === "number" ? activeRun.rag_quality.answer_relevancy >= 0.95 : null;
+  const qgSuccess = typeof activeRun?.reliability.success_rate === "number" ? activeRun.reliability.success_rate >= 0.95 : null;
+
+  // Status Geral Consolidado
+  const isOverallApproved =
+    qgRecall === true &&
+    qgMrr === true &&
+    qgFaith === true &&
+    qgRel === true &&
+    qgSuccess === true;
 
   return (
     <div className="min-h-screen bg-[#0C0D0E] text-[#E3E3E3] flex flex-col selection:bg-[#D97706]/20 selection:text-[#FDE68A]">
@@ -237,29 +247,41 @@ export function EvaluationView() {
             </div>
 
             {/* Quality Gates Overview Bar */}
-            <div className="rounded border border-[#242628] bg-[#161719] p-3 space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="rounded border border-[#242628] bg-[#161719] p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#242628] pb-2.5">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#10B981]" />
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-[#85888C]">
-                    Quality Gates de Produção (Metas Mínimas)
+                  {isOverallApproved ? (
+                    <ShieldCheck className="h-4 w-4 text-[#10B981]" />
+                  ) : (
+                    <ShieldAlert className="h-4 w-4 text-[#EF4444]" />
+                  )}
+                  <span className="text-xs font-mono uppercase tracking-wider text-[#E3E3E3] font-medium">
+                    Quality Gates de Produção
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-[#55585D]">
-                  [Critérios de Homologação]
-                </span>
+                <div>
+                  {isOverallApproved ? (
+                    <span className="text-[11px] font-mono text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/30 px-2 py-0.5 rounded flex items-center gap-1">
+                      <Check className="h-3 w-3" /> Status: Aprovado na Homologação
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-mono text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/30 px-2 py-0.5 rounded flex items-center gap-1 font-semibold">
+                      <XCircle className="h-3 w-3" /> Status: Reprovado nos Critérios
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <div className="flex items-center justify-between p-2 rounded bg-[#0C0D0E] border border-[#242628]">
                   <span className="text-[11px] text-[#85888C]">Recall@5 (≥90%)</span>
                   {qgRecall === true ? (
                     <span className="flex items-center gap-1 text-[10px] font-mono text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded">
-                      <Check className="h-2.5 w-2.5" /> Aprovado
+                      <Check className="h-2.5 w-2.5" /> Pass
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded">
-                      <XCircle className="h-2.5 w-2.5" /> Reprovado
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded font-semibold">
+                      <XCircle className="h-2.5 w-2.5" /> Fail
                     </span>
                   )}
                 </div>
@@ -268,11 +290,11 @@ export function EvaluationView() {
                   <span className="text-[11px] text-[#85888C]">MRR@5 (≥0.85)</span>
                   {qgMrr === true ? (
                     <span className="flex items-center gap-1 text-[10px] font-mono text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded">
-                      <Check className="h-2.5 w-2.5" /> Aprovado
+                      <Check className="h-2.5 w-2.5" /> Pass
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded">
-                      <XCircle className="h-2.5 w-2.5" /> Reprovado
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded font-semibold">
+                      <XCircle className="h-2.5 w-2.5" /> Fail
                     </span>
                   )}
                 </div>
@@ -281,11 +303,11 @@ export function EvaluationView() {
                   <span className="text-[11px] text-[#85888C]">Faithfulness (≥90%)</span>
                   {qgFaith === true ? (
                     <span className="flex items-center gap-1 text-[10px] font-mono text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded">
-                      <Check className="h-2.5 w-2.5" /> Aprovado
+                      <Check className="h-2.5 w-2.5" /> Pass
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#F59E0B] bg-[#F59E0B]/10 px-1.5 py-0.5 rounded">
-                      <AlertTriangle className="h-2.5 w-2.5" /> Alerta
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded font-semibold">
+                      <XCircle className="h-2.5 w-2.5" /> Fail
                     </span>
                   )}
                 </div>
@@ -294,11 +316,24 @@ export function EvaluationView() {
                   <span className="text-[11px] text-[#85888C]">Relevancy (≥95%)</span>
                   {qgRel === true ? (
                     <span className="flex items-center gap-1 text-[10px] font-mono text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded">
-                      <Check className="h-2.5 w-2.5" /> Aprovado
+                      <Check className="h-2.5 w-2.5" /> Pass
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded">
-                      <XCircle className="h-2.5 w-2.5" /> Reprovado
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded font-semibold">
+                      <XCircle className="h-2.5 w-2.5" /> Fail
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded bg-[#0C0D0E] border border-[#242628]">
+                  <span className="text-[11px] text-[#85888C]">Success Rate (≥95%)</span>
+                  {qgSuccess === true ? (
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#10B981] bg-[#10B981]/10 px-1.5 py-0.5 rounded">
+                      <Check className="h-2.5 w-2.5" /> Pass
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] font-mono text-[#EF4444] bg-[#EF4444]/10 px-1.5 py-0.5 rounded font-semibold">
+                      <XCircle className="h-2.5 w-2.5" /> Fail
                     </span>
                   )}
                 </div>
@@ -463,7 +498,7 @@ export function EvaluationView() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-[#85888C]">Success Rate</span>
-                    <span className="font-mono text-xs font-semibold text-[#10B981]">
+                    <span className={`font-mono text-xs font-semibold ${getScoreColor(activeRun.reliability.success_rate)}`}>
                       {typeof activeRun.reliability.success_rate === "number"
                         ? `${(activeRun.reliability.success_rate * 100).toFixed(1)}%`
                         : "N/A"}
@@ -490,7 +525,7 @@ export function EvaluationView() {
 
                   <div className="flex items-center justify-between text-[10px] font-mono text-[#55585D]">
                     <span>{activeRun.reliability.successful_queries} / {activeRun.reliability.total_queries} queries</span>
-                    <span>0 falhas</span>
+                    <span>{activeRun.reliability.failed_queries} falhas</span>
                   </div>
                 </div>
               </div>
@@ -605,7 +640,11 @@ export function EvaluationView() {
                   Resposta Gerada pelo Modelo ({selectedTrace.model_used}):
                 </span>
                 <div className="mt-1 rounded border border-[#242628] bg-[#0C0D0E] p-3 text-[#E3E3E3] font-serif leading-relaxed">
-                  {selectedTrace.generated_answer}
+                  {selectedTrace.generated_answer || (
+                    <span className="text-[#EF4444] font-mono">
+                      [FALHA NA EXECUÇÃO]: {selectedTrace.error_message || "Erro desconhecido"}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -625,11 +664,17 @@ export function EvaluationView() {
                   Evidências Recuperadas ({selectedTrace.retrieved_chunk_count} Chunks):
                 </span>
                 <div className="mt-1 space-y-1.5">
-                  {selectedTrace.retrieved_snippets.map((snippet, idx) => (
-                    <div key={idx} className="rounded border-l-2 border-l-[#D97706] border border-[#242628] bg-[#D97706]/10 p-2.5 text-[11px] font-serif text-[#FDE68A]">
-                      "{snippet}"
+                  {selectedTrace.retrieved_snippets.length > 0 ? (
+                    selectedTrace.retrieved_snippets.map((snippet, idx) => (
+                      <div key={idx} className="rounded border-l-2 border-l-[#D97706] border border-[#242628] bg-[#D97706]/10 p-2.5 text-[11px] font-serif text-[#FDE68A]">
+                        "{snippet}"
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded border border-[#242628] bg-[#0C0D0E] p-2 text-[11px] font-mono text-[#85888C]">
+                      Nenhuma evidência recuperada (Consulta Adversarial / Fora de Escopo).
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 

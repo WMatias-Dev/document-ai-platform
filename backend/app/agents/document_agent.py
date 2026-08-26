@@ -1,6 +1,10 @@
+import json
 import logging
-from typing import List, Optional
+from typing import Generator, List, Optional
+import uuid
+
 from app.database.models.user import User
+from app.repositories.chat_repository import ChatRepository
 from app.schemas.chat_schema import (
     ChatMessage,
     ChatRequest,
@@ -27,22 +31,22 @@ Diretrizes Estritas de Auditoria e Fidelidade:
 
 class DocumentAgent:
     """
-    Agente RAG responsável pela orquestração entre recuperação semântica e geração via Gemini 3.7.
+    Agente RAG responsável pela orquestração entre recuperação semântica,
+    persistência de histórico no PostgreSQL e geração de respostas (síncronas ou streaming) via Gemini.
     """
 
     def __init__(
         self,
         document_service: DocumentService,
         ai_service: Optional[AIService] = None,
+        chat_repository: Optional[ChatRepository] = None,
     ):
         self.document_service = document_service
         self.ai_service = ai_service or AIService()
+        self.chat_repository = chat_repository
 
-    def ask(self, request: ChatRequest, current_user: User) -> ChatResponse:
-        logger.info(
-            f"[DocumentAgent] Pergunta recebida do usuário {current_user.email}: '{request.message}'"
-        )
-
+    def _prepare_rag_context(self, request: ChatRequest, current_user: User):
+        """Recupera trechos relevantes e monta o prompt contextualizado."""
         search_request = DocumentSearchRequest(
             query=request.message,
             notebook_id=request.notebook_id,
@@ -95,13 +99,124 @@ class DocumentAgent:
             f"Resposta:"
         )
 
+        return full_prompt, citations
+
+    def ask(self, request: ChatRequest, current_user: User) -> ChatResponse:
+        logger.info(
+            f"[DocumentAgent] Pergunta síncrona do usuário {current_user.email}: '{request.message}'"
+        )
+
+        # 1. Persistência de Thread & Pergunta do Usuário
+        thread_id = request.thread_id
+        if self.chat_repository:
+            if not thread_id:
+                thread = self.chat_repository.get_or_create_thread(
+                    owner_id=current_user.id,
+                    notebook_id=request.notebook_id,
+                    title=request.message[:40],
+                )
+                thread_id = thread.id
+            self.chat_repository.add_message(
+                thread_id=thread_id,
+                role="user",
+                content=request.message,
+            )
+
+        full_prompt, citations = self._prepare_rag_context(request, current_user)
+
         answer = self.ai_service.generate_response(
             prompt=full_prompt,
             system_instruction=SYSTEM_PROMPT,
         )
 
+        # 2. Persistência da Resposta do Assistente
+        if self.chat_repository and thread_id:
+            citations_data = [c.model_dump(mode="json") for c in citations]
+            self.chat_repository.add_message(
+                thread_id=thread_id,
+                role="assistant",
+                content=answer,
+                citations=citations_data,
+                model_used=self.ai_service.model_name,
+            )
+
         return ChatResponse(
             answer=answer,
             citations=citations,
             model=self.ai_service.model_name,
+            thread_id=thread_id,
         )
+
+    def ask_stream(
+        self, request: ChatRequest, current_user: User
+    ) -> Generator[str, None, None]:
+        """
+        Gera eventos SSE (Server-Sent Events) transmitindo fontes e tokens progressivamente,
+        enquanto persiste as mensagens de usuário e assistente no banco de dados.
+        """
+        logger.info(
+            f"[DocumentAgent] Pergunta streaming do usuário {current_user.email}: '{request.message}'"
+        )
+
+        # 1. Resolve ou cria thread e persiste mensagem do usuário
+        thread_id = request.thread_id
+        if self.chat_repository:
+            if not thread_id:
+                thread = self.chat_repository.get_or_create_thread(
+                    owner_id=current_user.id,
+                    notebook_id=request.notebook_id,
+                    title=request.message[:40],
+                )
+                thread_id = thread.id
+            self.chat_repository.add_message(
+                thread_id=thread_id,
+                role="user",
+                content=request.message,
+            )
+
+        full_prompt, citations = self._prepare_rag_context(request, current_user)
+
+        # 2. Emite evento de Citações / Fontes encontradas
+        citations_data = [c.model_dump(mode="json") for c in citations]
+        yield f"event: citations\ndata: {json.dumps(citations_data, ensure_ascii=False)}\n\n"
+
+        # 3. Emite tokens progressivos da resposta da IA
+        accumulated_text = []
+        try:
+            for token in self.ai_service.generate_response_stream(
+                prompt=full_prompt,
+                system_instruction=SYSTEM_PROMPT,
+            ):
+                accumulated_text.append(token)
+                delta_payload = json.dumps({"text": token}, ensure_ascii=False)
+                yield f"event: delta\ndata: {delta_payload}\n\n"
+        except Exception as e:
+            logger.error(f"[DocumentAgent] Erro durante streaming: {e}", exc_info=True)
+            err_payload = json.dumps({"error": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {err_payload}\n\n"
+            return
+
+        final_answer = "".join(accumulated_text)
+
+        # 4. Persiste a resposta final no banco de dados
+        message_id_str = ""
+        if self.chat_repository and thread_id:
+            assistant_msg = self.chat_repository.add_message(
+                thread_id=thread_id,
+                role="assistant",
+                content=final_answer,
+                citations=citations_data,
+                model_used=self.ai_service.model_name,
+            )
+            message_id_str = str(assistant_msg.id)
+
+        # 5. Emite evento de conclusão
+        done_payload = json.dumps(
+            {
+                "thread_id": str(thread_id) if thread_id else None,
+                "message_id": message_id_str,
+                "model": self.ai_service.model_name,
+            },
+            ensure_ascii=False,
+        )
+        yield f"event: done\ndata: {done_payload}\n\n"

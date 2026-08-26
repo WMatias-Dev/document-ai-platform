@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { apiClient, getErrorMessage } from "@/lib/api-client";
-import { ChatResponse, DocumentItem, DocumentCitation } from "@/types/api";
+import { DocumentItem, DocumentCitation, ChatThreadItem, ChatMessageDetail } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 import {
-  Send,
   Loader2,
   Trash2,
   BookmarkCheck,
@@ -19,30 +19,45 @@ import {
   FileSpreadsheet,
   CornerDownLeft,
   Search,
+  Sparkles,
 } from "lucide-react";
 
 export function ChatPanel() {
+  const queryClient = useQueryClient();
+  const { token } = useAuthStore();
   const {
     activeNotebookId,
     messages,
+    setMessages,
     addMessage,
+    updateLastMessageContent,
     clearMessages,
     selectedSourceIds,
     openCitationInStudio,
     setAddSourceModalOpen,
-    isChatLoading,
-    setIsChatLoading,
+    activeThreadId,
+    setActiveThreadId,
+    isStreaming,
+    setIsStreaming,
   } = useChatStore();
 
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFetchingHistory = useRef(false);
 
+  const isUUID =
+    !!activeNotebookId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      activeNotebookId
+    );
+
+  // 1. Carrega Documentos do Caderno
   const { data: documents = [] } = useQuery<DocumentItem[]>({
     queryKey: activeNotebookId
       ? ["notebook_documents", activeNotebookId]
       : ["documents"],
     queryFn: async () => {
-      const url = activeNotebookId
+      const url = isUUID
         ? `/notebooks/${activeNotebookId}/documents`
         : "/documents/";
       const res = await apiClient.get(url);
@@ -52,79 +67,202 @@ export function ChatPanel() {
 
   const completedDocs = documents.filter((d) => d.status === "COMPLETED");
 
+  // 2. Carregamento Automático de Histórico de Conversa Persistido no PostgreSQL
+  useEffect(() => {
+    async function loadHistory() {
+      if (isFetchingHistory.current) return;
+      isFetchingHistory.current = true;
+
+      try {
+        const threadUrl = isUUID
+          ? `/chat/threads?notebook_id=${activeNotebookId}`
+          : "/chat/threads";
+        const threadsRes = await apiClient.get<ChatThreadItem[]>(threadUrl);
+        const threads = threadsRes.data;
+
+        if (threads && threads.length > 0) {
+          const latestThread = threads[0];
+          setActiveThreadId(latestThread.id);
+
+          const msgsRes = await apiClient.get<ChatMessageDetail[]>(
+            `/chat/threads/${latestThread.id}/messages`
+          );
+          const savedMsgs = msgsRes.data;
+
+          if (savedMsgs && savedMsgs.length > 0) {
+            setMessages(
+              savedMsgs.map((m) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                citations: (m.citations as DocumentCitation[]) || [],
+                model: m.model_used || "gemini-3.7-flash",
+                createdAt: new Date(m.created_at),
+              }))
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao recuperar histórico do chat:", err);
+      } finally {
+        isFetchingHistory.current = false;
+      }
+    }
+
+    loadHistory();
+  }, [activeNotebookId, isUUID, setActiveThreadId, setMessages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isStreaming]);
 
-  const isUUID =
-    !!activeNotebookId &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      activeNotebookId
-    );
+  // 3. Executor de Chat com Streaming SSE em Tempo Real
+  const executeStreamChat = useCallback(
+    async (queryText: string) => {
+      if (!queryText.trim() || isStreaming) return;
 
-  const chatMutation = useMutation({
-    mutationFn: async (messageText: string) => {
-      setIsChatLoading(true);
+      setIsStreaming(true);
+
+      // Adiciona mensagem do usuário na tela
+      addMessage({
+        role: "user",
+        content: queryText,
+      });
+
+      // Cria mensagem placeholder do assistente para streaming progressivo
+      addMessage({
+        role: "assistant",
+        content: "",
+        citations: [],
+      });
+
       const historyPayload = messages.slice(-6).map((m) => ({
         role: m.role,
         content: m.content,
       }));
 
-      const res = await apiClient.post<ChatResponse>("/chat/", {
-        message: messageText,
-        notebook_id: isUUID ? activeNotebookId : null,
-        source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
-        history: historyPayload,
-        max_chunks: 5,
-      });
+      const apiBase =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const authToken =
+        token ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("doc_ai_token")
+          : "") ||
+        "";
 
-      return res.data;
+      try {
+        const response = await fetch(`${apiBase}/chat/stream`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            message: queryText,
+            thread_id: activeThreadId || null,
+            notebook_id: isUUID ? activeNotebookId : null,
+            source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
+            history: historyPayload,
+            max_chunks: 5,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro na conexão SSE: HTTP ${response.status}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("ReadableStream não suportado pelo navegador.");
+
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        let currentCitations: DocumentCitation[] = [];
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || "";
+
+          for (const block of lines) {
+            if (!block.trim()) continue;
+            const eventMatch = block.match(/^event:\s*(\w+)/m);
+            const dataMatch = block.match(/^data:\s*(.+)$/m);
+
+            if (!eventMatch || !dataMatch) continue;
+
+            const eventType = eventMatch[1];
+            const dataRaw = dataMatch[1];
+
+            try {
+              const dataObj = JSON.parse(dataRaw);
+
+              if (eventType === "citations") {
+                currentCitations = dataObj;
+                updateLastMessageContent(accumulatedText, currentCitations);
+              } else if (eventType === "delta") {
+                accumulatedText += dataObj.text || "";
+                updateLastMessageContent(accumulatedText, currentCitations);
+              } else if (eventType === "done") {
+                if (dataObj.thread_id && !activeThreadId) {
+                  setActiveThreadId(dataObj.thread_id);
+                }
+                updateLastMessageContent(
+                  accumulatedText,
+                  currentCitations,
+                  dataObj.model
+                );
+              } else if (eventType === "error") {
+                toast.error("Erro na geração da IA", {
+                  description: dataObj.error,
+                });
+              }
+            } catch (pErr) {
+              console.warn("Erro ao fazer parse de evento SSE:", pErr);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error("Falha no streaming do chat:", err);
+        const msg = getErrorMessage(err, "Falha ao conectar com o serviço de IA.");
+        toast.error("Erro no chat", { description: msg });
+        updateLastMessageContent(
+          "Ocorreu uma instabilidade na transmissão da resposta. Por favor, tente novamente."
+        );
+      } finally {
+        setIsStreaming(false);
+        queryClient.invalidateQueries({ queryKey: ["chat_threads"] });
+      }
     },
-    onSuccess: (data) => {
-      setIsChatLoading(false);
-      addMessage({
-        role: "assistant",
-        content: data.answer,
-        citations: data.citations,
-        model: data.model,
-      });
-    },
-    onError: (err: any) => {
-      setIsChatLoading(false);
-      const msg = getErrorMessage(
-        err,
-        "Erro ao consultar o acervo documental."
-      );
-      toast.error("Falha na consulta", { description: msg });
-      addMessage({
-        role: "assistant",
-        content:
-          "Ocorreu uma falha ao recuperar evidências nos documentos. Por favor, reformule a consulta ou verifique as fontes selecionadas.",
-      });
-    },
-  });
+    [
+      isStreaming,
+      activeNotebookId,
+      activeThreadId,
+      isUUID,
+      messages,
+      selectedSourceIds,
+      token,
+      addMessage,
+      updateLastMessageContent,
+      setActiveThreadId,
+      setIsStreaming,
+      queryClient,
+    ]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || chatMutation.isPending) return;
-
+    if (!inputText.trim() || isStreaming) return;
     const query = inputText.trim();
     setInputText("");
-
-    addMessage({
-      role: "user",
-      content: query,
-    });
-
-    chatMutation.mutate(query);
+    executeStreamChat(query);
   };
 
   const handlePromptSuggestion = (text: string) => {
-    addMessage({
-      role: "user",
-      content: text,
-    });
-    chatMutation.mutate(text);
+    executeStreamChat(text);
   };
 
   const activeCount = selectedSourceIds.length;
@@ -151,8 +289,7 @@ export function ChatPanel() {
               </h2>
               <p className="text-xs font-sans text-[#85888C] max-w-md mx-auto leading-relaxed">
                 Formule perguntas sobre o acervo anexado. Cada resposta é
-                apresentada no formato de memorando técnico com citações e
-                trechos auditáveis.
+                apresentada no formato de memorando técnico com streaming em tempo real e citações auditáveis.
               </p>
             </div>
 
@@ -251,6 +388,8 @@ export function ChatPanel() {
           /* Continuous Research Memo / Dossier Entries */
           messages.map((msg, index) => {
             const isUser = msg.role === "user";
+            const isLatestAssistant =
+              !isUser && index === messages.length - 1 && isStreaming;
 
             if (isUser) {
               return (
@@ -276,22 +415,46 @@ export function ChatPanel() {
               >
                 {/* Memo Header */}
                 <div className="flex items-center justify-between border-b border-[#242628] pb-3 text-[10px] font-mono text-[#85888C]">
-                  <span className="uppercase tracking-widest text-[#85888C]">
-                    Parecer de Análise Sintetizada
-                  </span>
-                  <span className="text-[#55585D]">
-                    {new Date(msg.createdAt || Date.now()).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3 w-3 text-[#D97706]" />
+                    <span className="uppercase tracking-widest text-[#85888C]">
+                      Parecer de Análise Sintetizada
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {msg.model && (
+                      <span className="text-[10px] font-mono text-[#55585D] hidden sm:inline">
+                        {msg.model}
+                      </span>
+                    )}
+                    <span className="text-[#55585D]">
+                      {new Date(msg.createdAt || Date.now()).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Editorial Body (Source Serif 4) */}
+                {/* Editorial Body (Source Serif 4) with streaming pulsing cursor */}
                 <div className="font-serif text-sm text-[#E3E3E3] leading-relaxed space-y-3 prose prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
+                  {msg.content ? (
+                    <>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                      {isLatestAssistant && (
+                        <span className="inline-block animate-pulse text-[#D97706] font-mono ml-0.5 text-base">
+                          ▍
+                        </span>
+                      )}
+                    </>
+                  ) : isLatestAssistant ? (
+                    <div className="flex items-center gap-2 text-xs font-mono text-[#85888C] py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D97706]" />
+                      <span>Consultando evidências nos documentos...</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Academic Footnotes & Citations Table */}
@@ -331,14 +494,6 @@ export function ChatPanel() {
           })
         )}
 
-        {/* Loading Indicator */}
-        {(chatMutation.isPending || isChatLoading) && (
-          <div className="max-w-3xl mx-auto rounded border border-[#242628] bg-[#161719] p-4 flex items-center gap-2.5 text-xs font-mono text-[#85888C]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D97706]" />
-            <span>Recuperando fragmentos no banco vetorial e sintetizando parecer...</span>
-          </div>
-        )}
-
         <div ref={messagesEndRef} />
       </div>
 
@@ -358,7 +513,7 @@ export function ChatPanel() {
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            disabled={chatMutation.isPending}
+            disabled={isStreaming}
             placeholder="Formule uma pergunta ou requisição sobre os documentos..."
             className="flex-1 bg-transparent px-1 py-1 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none disabled:opacity-50 font-sans"
           />
@@ -376,10 +531,10 @@ export function ChatPanel() {
 
           <button
             type="submit"
-            disabled={chatMutation.isPending || !inputText.trim()}
+            disabled={isStreaming || !inputText.trim()}
             className="flex items-center gap-1 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] font-medium px-2.5 py-1 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
-            {chatMutation.isPending ? (
+            {isStreaming ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
               <>

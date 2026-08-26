@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from app.evaluation.judges import AnswerRelevancyEvaluator, FaithfulnessEvaluator
+from app.evaluation.judges import AnswerRelevancyEvaluator, FaithfulnessEvaluator, is_valid_refusal
 from app.evaluation.metrics import (
     calculate_mrr_at_k,
     calculate_percentiles,
@@ -59,7 +59,7 @@ def run_evaluation(
 ) -> EvaluationRun:
     """
     Executa a avaliação do RAG sobre um dataset canônico de ground truth,
-    medindo latências reais com alta precisão, calculando métricas e salvando o trace completo.
+    medindo latências reais com alta precisão, calculando métricas e penalizando falhas de execução.
     """
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset não encontrado em: {dataset_path}")
@@ -100,33 +100,24 @@ def run_evaluation(
 
         logger.info(f"[{idx}/{len(test_cases)}] Executando caso {q_id}: '{question[:50]}...'")
 
+        # Pequena pausa entre chamadas para evitar rajadas de Rate Limit
+        if idx > 1:
+            time.sleep(0.3)
+
         t_total_start = time.perf_counter()
 
         # 2. Retrieval com cronometragem exata
         t_ret_start = time.perf_counter()
         retrieved_chunks = canonical_snippets.copy()
-        # Simula tempo de busca vetorial real (3 a 15ms)
-        time.sleep(0.008)
+        time.sleep(0.008)  # Simula latência de busca vetorial
         t_ret_end = time.perf_counter()
         ret_latency_ms = round((t_ret_end - t_ret_start) * 1000.0, 2)
         retrieval_latencies.append(ret_latency_ms)
 
-        # 3. Métricas de Retrieval
-        if canonical_snippets:
-            recall = calculate_recall_at_k(retrieved_chunks, canonical_snippets, k=top_k)
-            mrr = calculate_mrr_at_k(retrieved_chunks, canonical_snippets, k=top_k)
-        else:
-            # Caso negativo (out of scope): recall é 1.0 se retrieval vazio
-            recall = 1.0 if not retrieved_chunks else 1.0
-            mrr = 1.0
-
-        recalls.append(recall)
-        mrrs.append(mrr)
-
         if not retrieved_chunks:
             empty_retrieval_count += 1
 
-        # 4. Geração LLM Real com Gemini
+        # 3. Geração LLM Real com Gemini
         t_gen_start = time.perf_counter()
         if retrieved_chunks:
             context_str = "\n".join(f"- {c}" for c in retrieved_chunks)
@@ -165,25 +156,44 @@ def run_evaluation(
         total_latency_ms = round((t_total_end - t_total_start) * 1000.0, 2)
         total_latencies.append(total_latency_ms)
 
-        # 5. Juízes de Qualidade (Faithfulness & Answer Relevancy)
-        faith_score = None
-        rel_score = None
-        if evaluate_llm_judges and status == "SUCCESS":
-            faith_res = faithfulness_judge.evaluate(
-                answer=generated_answer,
-                context_chunks=retrieved_chunks,
-            )
-            faith_score = faith_res.get("score")
-            if faith_score is not None:
-                faithfulness_scores.append(faith_score)
+        # 4. Cálculo de Métricas com penalização estrita de falhas
+        if status == "ERROR":
+            recall = 0.0
+            mrr = 0.0
+            faith_score = 0.0
+            rel_score = 0.0
+        else:
+            # Métricas de Retrieval
+            if canonical_snippets:
+                recall = calculate_recall_at_k(retrieved_chunks, canonical_snippets, k=top_k)
+                mrr = calculate_mrr_at_k(retrieved_chunks, canonical_snippets, k=top_k)
+            else:
+                # Caso negativo (out of scope): se o modelo fez recusa correta, recall é 1.0
+                recall = 1.0 if is_valid_refusal(generated_answer) else 0.0
+                mrr = 1.0 if is_valid_refusal(generated_answer) else 0.0
 
-            rel_res = relevancy_judge.evaluate(
-                question=question,
-                answer=generated_answer,
-            )
-            rel_score = rel_res.get("score")
-            if rel_score is not None:
-                relevancy_scores.append(rel_score)
+            # 5. Juízes de Qualidade (Faithfulness & Answer Relevancy)
+            faith_score = None
+            rel_score = None
+            if evaluate_llm_judges:
+                faith_res = faithfulness_judge.evaluate(
+                    answer=generated_answer,
+                    context_chunks=retrieved_chunks,
+                )
+                faith_score = faith_res.get("score", 0.0)
+
+                rel_res = relevancy_judge.evaluate(
+                    question=question,
+                    answer=generated_answer,
+                )
+                rel_score = rel_res.get("score", 0.0)
+
+        recalls.append(recall)
+        mrrs.append(mrr)
+        if faith_score is not None:
+            faithfulness_scores.append(faith_score)
+        if rel_score is not None:
+            relevancy_scores.append(rel_score)
 
         traces.append(
             EvaluationTrace(
@@ -286,7 +296,7 @@ if __name__ == "__main__":
         default="backend/app/evaluation/datasets/contracts_eval_v1.json",
         help="Caminho relativo para o arquivo JSON do dataset",
     )
-    parser.add_argument("--name", type=str, default="Baseline v1.0", help="Nome da execução")
+    parser.add_argument("--name", type=str, default="Baseline v1.1", help="Nome da execução")
     parser.add_argument("--baseline", action="store_true", help="Marcar como execução Baseline oficial")
     parser.add_argument("--top_k", type=int, default=5, help="Top-K chunks para cálculo de Recall@K e MRR@K")
 
