@@ -17,6 +17,8 @@ from app.api.routes_evaluation import router as evaluation_router
 from app.database.models.user import User
 from app.database.models.document import Document
 from app.database.models.document_chunk import DocumentChunk
+from app.database.models.chat_thread import ChatThread
+from app.database.models.chat_message import ChatMessage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

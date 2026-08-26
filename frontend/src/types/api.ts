@@ -92,6 +92,7 @@ export interface DocumentCitation {
 
 export interface ChatRequest {
   message: string;
+  thread_id?: string | null;
   notebook_id?: string | null;
   document_id?: string | null;
   source_ids?: string[] | null;
@@ -103,6 +104,27 @@ export interface ChatResponse {
   answer: string;
   citations: DocumentCitation[];
   model: string;
+  thread_id?: string | null;
+}
+
+export interface ChatMessageDetail {
+  id: string;
+  thread_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  citations?: DocumentCitation[] | null;
+  model_used?: string | null;
+  created_at: string;
+}
+
+export interface ChatThreadItem {
+  id: string;
+  title: string;
+  notebook_id?: string | null;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+  messages?: ChatMessageDetail[];
 }
 
 // ==========================================

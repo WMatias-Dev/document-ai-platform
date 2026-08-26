@@ -9,6 +9,7 @@ from app.database.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.notebook_repository import NotebookRepository
+from app.repositories.chat_repository import ChatRepository
 from app.services.storage_service import StorageService
 from app.services.parsing_service import ParsingService
 from app.services.chunking_service import ChunkingService
@@ -79,3 +80,7 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
 
 def get_notebook_service(db: Session = Depends(get_db)) -> NotebookService:
     return NotebookService(db=db)
+
+
+def get_chat_repository(db: Session = Depends(get_db)) -> ChatRepository:
+    return ChatRepository(db=db)

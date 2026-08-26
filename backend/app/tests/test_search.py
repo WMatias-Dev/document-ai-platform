@@ -73,7 +73,9 @@ def test_search_documents_success_flow():
     mock_repo.similarity_search.assert_called_once_with(
         query_embedding=[0.1] * 768,
         user_id=user_id,
+        notebook_id=None,
         document_id=None,
+        source_ids=None,
         limit=3,
     )
 
