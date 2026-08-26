@@ -105,114 +105,89 @@ flowchart TB
 ### Fluxograma de Orquestração
 
 ```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'primaryColor': '#161719',
-    'primaryTextColor': '#E3E3E3',
-    'primaryBorderColor': '#383B40',
-    'lineColor': '#85888C',
-    'secondaryColor': '#121316',
-    'tertiaryColor': '#0C0D0E',
-    'fontFamily': 'Inter, system-ui, -apple-system, sans-serif',
-    'fontSize': '12px'
-  }
-}}%%
-flowchart TB
-    User(["🖥️ Frontend (Next.js 16 Client)"]):::clientNode
-    API["⚡ FastAPI Orchestrator (DocumentAgent)"]:::apiNode
+%%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '12px', 'darkMode': true }}}%%
+flowchart TD
+    User["🖥️ Frontend (Next.js Client)"]
+    API["⚡ FastAPI Orchestrator (DocumentAgent)"]
 
     User -->|"1. POST /chat/stream"| API
 
-    %% Subgraph 1: RAG Context Retrieval
-    subgraph RAG ["  🔍 1. Recuperação de Contexto (Vector Search)  "]
-        direction TB
-        GeminiEmb["🧠 Embedding Service (Ollama / Gemini)"]:::aiNode
-        PgVector[("🗄️ Vector Store (pgvector / HNSW)")]:::dbNode
+    %% ETAPA 1
+    subgraph S1 ["1. Recuperação de Contexto (Vector Search)"]
+        direction LR
+        Emb["🧬 Embedding Service<br/>(Ollama / Gemini)"]
+        PgV[("🗄️ Vector Store<br/>(pgvector / HNSW)")]
         
-        API -->|"Gera embedding da consulta"| GeminiEmb
-        GeminiEmb -->|"query_vector (768d)"| API
-        API -->|"Busca Cosseno Top-K"| PgVector
-        PgVector -->|"Chunks canônicos de evidência"| API
+        Emb -->|"query_vector"| PgV
     end
 
-    API == "📡 SSE [citations]: Metadados das Fontes" ==> User
-
-    %% Subgraph 2: LLM Generation & Token Stream
-    subgraph Stream ["  ✨ 2. Síntese Fundamentada & Streaming  "]
-        direction TB
-        GeminiChat["🤖 AIService (Gemini Resilient Pool)"]:::aiNode
-        
-        API -->|"Prompt Anti-Alucinação + Contexto"| GeminiChat
-        GeminiChat -->|"Stream progressivo de tokens"| API
+    %% ETAPA 2
+    subgraph S2 ["2. Síntese Fundamentada & Streaming"]
+        direction LR
+        LLM["✨ AIService<br/>(Gemini Resilient Pool)"]
     end
 
-    API == "📡 SSE [delta]: Chunks de Texto em Tempo Real" ==> User
-
-    %% Subgraph 3: Relational Persistence
-    subgraph Persist ["  💾 3. Persistência Relacional de Conversa  "]
-        direction TB
-        Postgres[("🏛️ ChatRepository (PostgreSQL)")]:::dbNode
-        
-        API -->|"Persiste histórico e referências"| Postgres
-        Postgres -->|"Confirmação (thread_id, msg_id)"| API
+    %% ETAPA 3
+    subgraph S3 ["3. Persistência Relacional"]
+        direction LR
+        PG[("💾 ChatRepository<br/>(PostgreSQL)")]
     end
 
-    API == "📡 SSE [done]: Encerramento & Identificadores" ==> User
+    %% Conexões do Pipeline
+    API -->|"Gera embedding da consulta"| Emb
+    PgV -->|"Top-K Chunks de evidência"| S2
+    
+    API -.->|"📡 SSE [citations]: Metadados"| User
+    
+    S2 -->|"Prompt + Contexto → Stream de tokens"| LLM
+    LLM -.->|"📡 SSE [delta]: Chunks em Tempo Real"| User
+    
+    LLM -->|"Resposta completa"| PG
+    PG -.->|"📡 SSE [done]: Encerramento (thread_id)"| User
 
-    %% Definições de Estilos de Alto Impacto Visual
-    classDef clientNode fill:#1E293B,stroke:#38BDF8,stroke-width:2px,color:#F8FAFC,font-weight:600;
-    classDef apiNode fill:#1C1917,stroke:#F59E0B,stroke-width:2px,color:#FEF3C7,font-weight:600;
-    classDef aiNode fill:#18181B,stroke:#A855F7,stroke-width:1.5px,color:#F3E8FF;
-    classDef dbNode fill:#18181B,stroke:#10B981,stroke-width:1.5px,color:#D1FAE5;
-    classDef default fill:#121316,stroke:#27272A,stroke-width:1px,color:#E4E4E7;
+    %% Estilização limpa
+    classDef default fill:#1e1e2e,stroke:#45475a,stroke-width:1px,color:#cdd6f4;
+    classDef sse stroke:#89b4fa,stroke-width:1.5px,stroke-dasharray: 4 4,color:#89b4fa;
 ```
 
 ### Diagrama de Sequência Detalhado
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '12px', 'darkMode': true }}}%%
 sequenceDiagram
     autonumber
-    actor User as Frontend (Next.js)
+    actor User as 🖥️ Frontend (Next.js)
+    participant API as ⚡ FastAPI (DocumentAgent)
+    participant Emb as 🧬 Embedding (Gemini/Ollama)
+    participant Vec as 🗄️ pgvector (HNSW)
+    participant LLM as ✨ Gemini Pool
+    participant DB as 💾 PostgreSQL
+
+    User->>API: POST /chat/stream
     
-    box rgb(22, 23, 25) Backend (FastAPI)
-        participant API as Endpoint (/chat/stream)
-        participant Agent as DocumentAgent
+    rect rgb(30, 35, 45)
+        Note over API,Vec: 1. Recuperação de Contexto
+        API->>Emb: Gera embedding
+        Emb-->>API: query_vector
+        API->>Vec: Busca Cosseno Top-K
+        Vec-->>API: Chunks de evidência
+        API-->>User: SSE [citations]
     end
 
-    box rgb(28, 29, 32) AI & Embeddings
-        participant Gemini as AIService (Gemini Pool)
+    rect rgb(35, 40, 35)
+        Note over API,LLM: 2. Síntese & Streaming
+        API->>LLM: Prompt Anti-Alucinação + Contexto
+        loop Tokens
+            LLM-->>User: SSE [delta]
+        end
     end
 
-    box rgb(22, 23, 25) Banco de Dados
-        participant VectorDB as Vector Store (pgvector)
-        participant RelDB as ChatRepository (PostgreSQL)
+    rect rgb(40, 35, 35)
+        Note over API,DB: 3. Persistência
+        API->>DB: Persiste histórico e referências
+        DB-->>API: Confirmação
+        API-->>User: SSE [done]
     end
-
-    %% 1. Início da requisição
-    User->>API: POST /chat/stream (message, notebook_id)
-    API->>Agent: ask_stream()
-
-    %% 2. Embeddings & RAG
-    Agent->>Gemini: generate_query_embedding(message)
-    Gemini-->>Agent: query_vector
-    Agent->>VectorDB: similarity_search(query_vector, HNSW)
-    VectorDB-->>Agent: top_k_chunks
-
-    %% 3. Envio antecipado de fontes (SSE)
-    Agent-->>User: SSE event: citations (fontes / metadados)
-
-    %% 4. Streaming da resposta
-    Agent->>Gemini: generate_response_stream(prompt, context)
-    loop Stream de Tokens
-        Gemini-->>Agent: yield token_chunk
-        Agent-->>User: SSE event: delta (chunk_text)
-    end
-
-    %% 5. Persistência e Encerramento
-    Agent->>RelDB: save_message_and_sources()
-    RelDB-->>Agent: { thread_id, message_id }
-    Agent-->>User: SSE event: done { thread_id, message_id }
 ```
 
 ---
