@@ -10,16 +10,14 @@ import {
   SearchResultChunk,
 } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
+import { QuickTasks } from "./quick-tasks";
 import {
   Search,
   BookOpen,
   Copy,
   Check,
-  Scale,
-  FileSpreadsheet,
   Quote,
   Loader2,
-  Play,
 } from "lucide-react";
 
 export function StudioPanel() {
@@ -32,11 +30,12 @@ export function StudioPanel() {
     openSearchResultInStudio,
     addMessage,
     selectedSourceIds,
-    messages,
+    getMessages,
     isChatLoading,
     setIsChatLoading,
   } = useChatStore();
 
+  const messages = getMessages(activeNotebookId);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultChunk[]>([]);
   const [isCopied, setIsCopied] = useState(false);
@@ -273,7 +272,7 @@ export function StudioPanel() {
           </div>
         )}
 
-        {/* ABA 2: TAREFAS DE ANÁLISE PRONTAS */}
+        {/* ABA 2: TAREFAS DE ANÁLISE PRONTAS (UNIVERSAL NOTEBOOKLM) */}
         {activeStudioTab === "overview" && (
           <div className="space-y-2.5 animate-in fade-in duration-100">
             <div className="border-b border-[#242628] pb-1.5 flex items-center justify-between">
@@ -288,112 +287,11 @@ export function StudioPanel() {
               )}
             </div>
 
-            <div className="space-y-1.5">
-              {/* Tarefa 1: Resumo Executivo */}
-              <button
-                onClick={() =>
-                  handleQuickTask(
-                    "task-exec-summary",
-                    "Elabore um Resumo Executivo estruturado em tópicos dos documentos selecionados, contendo: Visão Geral, Principais Cláusulas/Tópicos e Conclusões."
-                  )
-                }
-                disabled={isAnyTaskRunning}
-                className={`w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
-                  runningTaskId === "task-exec-summary"
-                    ? "border-[#D97706] bg-[#1C1D20]"
-                    : ""
-                } disabled:opacity-60 disabled:cursor-not-allowed`}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {runningTaskId === "task-exec-summary" ? (
-                    <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
-                  ) : (
-                    <BookOpen className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
-                    <span>Resumo Executivo</span>
-                    <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
-                      [Executar ↵]
-                    </span>
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Síntese completa e estruturada.
-                  </p>
-                </div>
-              </button>
-
-              {/* Tarefa 2: Mapeamento de Riscos */}
-              <button
-                onClick={() =>
-                  handleQuickTask(
-                    "task-risk-mapping",
-                    "Identifique todos os riscos, prazos fatais e cláusulas de penalidade/rescisão presentes nas fontes selecionadas."
-                  )
-                }
-                disabled={isAnyTaskRunning}
-                className={`w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
-                  runningTaskId === "task-risk-mapping"
-                    ? "border-[#D97706] bg-[#1C1D20]"
-                    : ""
-                } disabled:opacity-60 disabled:cursor-not-allowed`}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {runningTaskId === "task-risk-mapping" ? (
-                    <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
-                  ) : (
-                    <Scale className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
-                    <span>Mapeamento de Riscos</span>
-                    <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
-                      [Executar ↵]
-                    </span>
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Prazos críticos e multas.
-                  </p>
-                </div>
-              </button>
-
-              {/* Tarefa 3: Tabela de Valores */}
-              <button
-                onClick={() =>
-                  handleQuickTask(
-                    "task-data-table",
-                    "Estruture uma Tabela Comparativa em Markdown com as métricas, datas, partes e valores mencionados no texto."
-                  )
-                }
-                disabled={isAnyTaskRunning}
-                className={`w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
-                  runningTaskId === "task-data-table"
-                    ? "border-[#D97706] bg-[#1C1D20]"
-                    : ""
-                } disabled:opacity-60 disabled:cursor-not-allowed`}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {runningTaskId === "task-data-table" ? (
-                    <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
-                  ) : (
-                    <FileSpreadsheet className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
-                    <span>Tabela de Valores</span>
-                    <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
-                      [Executar ↵]
-                    </span>
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Organização tabular de dados.
-                  </p>
-                </div>
-              </button>
-            </div>
+            <QuickTasks
+              onExecuteTask={handleQuickTask}
+              runningTaskId={runningTaskId}
+              isDisabled={isAnyTaskRunning}
+            />
           </div>
         )}
 

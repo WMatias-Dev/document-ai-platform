@@ -6,17 +6,19 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { apiClient, getErrorMessage } from "@/lib/api-client";
-import { DocumentItem, DocumentCitation, ChatThreadItem, ChatMessageDetail } from "@/types/api";
+import {
+  DocumentItem,
+  DocumentCitation,
+  ChatThreadItem,
+  ChatMessageDetail,
+} from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { UNIVERSAL_QUICK_TASKS } from "./quick-tasks";
 import {
   Loader2,
   Trash2,
   BookmarkCheck,
-  Scale,
-  Calendar,
-  BookOpen,
-  FileSpreadsheet,
   CornerDownLeft,
   Search,
   Sparkles,
@@ -27,16 +29,17 @@ export function ChatPanel() {
   const { token } = useAuthStore();
   const {
     activeNotebookId,
-    messages,
-    setMessages,
-    addMessage,
-    updateLastMessageContent,
-    clearMessages,
+    messagesByNotebook,
+    getMessages,
+    setMessagesForNotebook,
+    addMessageToNotebook,
+    updateLastMessageForNotebook,
+    clearMessagesForNotebook,
+    getActiveThreadId,
+    setActiveThreadIdForNotebook,
     selectedSourceIds,
     openCitationInStudio,
     setAddSourceModalOpen,
-    activeThreadId,
-    setActiveThreadId,
     isStreaming,
     setIsStreaming,
   } = useChatStore();
@@ -45,13 +48,17 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFetchingHistory = useRef(false);
 
+  // Mensagens e thread vinculadas unicamente ao notebookId atual
+  const messages = getMessages(activeNotebookId);
+  const activeThreadId = getActiveThreadId(activeNotebookId);
+
   const isUUID =
     !!activeNotebookId &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
       activeNotebookId
     );
 
-  // 1. Carrega Documentos do Caderno
+  // 1. Carrega Documentos do Caderno Atual
   const { data: documents = [] } = useQuery<DocumentItem[]>({
     queryKey: activeNotebookId
       ? ["notebook_documents", activeNotebookId]
@@ -67,9 +74,13 @@ export function ChatPanel() {
 
   const completedDocs = documents.filter((d) => d.status === "COMPLETED");
 
-  // 2. Carregamento Automático de Histórico de Conversa Persistido no PostgreSQL
+  // 2. Carregamento Isolado do Histórico do Caderno Atual
   useEffect(() => {
     async function loadHistory() {
+      // Se já temos mensagens em memória para este caderno, não recarrega
+      const existing = messagesByNotebook[activeNotebookId || "global"];
+      if (existing && existing.length > 0) return;
+
       if (isFetchingHistory.current) return;
       isFetchingHistory.current = true;
 
@@ -82,7 +93,7 @@ export function ChatPanel() {
 
         if (threads && threads.length > 0) {
           const latestThread = threads[0];
-          setActiveThreadId(latestThread.id);
+          setActiveThreadIdForNotebook(activeNotebookId, latestThread.id);
 
           const msgsRes = await apiClient.get<ChatMessageDetail[]>(
             `/chat/threads/${latestThread.id}/messages`
@@ -90,13 +101,14 @@ export function ChatPanel() {
           const savedMsgs = msgsRes.data;
 
           if (savedMsgs && savedMsgs.length > 0) {
-            setMessages(
+            setMessagesForNotebook(
+              activeNotebookId,
               savedMsgs.map((m) => ({
                 id: m.id,
                 role: m.role,
                 content: m.content,
                 citations: (m.citations as DocumentCitation[]) || [],
-                model: m.model_used || "gemini-3.7-flash",
+                model: m.model_used || "gemini-3.5-flash-lite",
                 createdAt: new Date(m.created_at),
               }))
             );
@@ -110,33 +122,41 @@ export function ChatPanel() {
     }
 
     loadHistory();
-  }, [activeNotebookId, isUUID, setActiveThreadId, setMessages]);
+  }, [
+    activeNotebookId,
+    isUUID,
+    messagesByNotebook,
+    setActiveThreadIdForNotebook,
+    setMessagesForNotebook,
+  ]);
 
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isStreaming]);
 
-  // 3. Executor de Chat com Streaming SSE em Tempo Real
+  // 3. Executor de Chat com Streaming SSE e Isolamento Estrito
   const executeStreamChat = useCallback(
     async (queryText: string) => {
       if (!queryText.trim() || isStreaming) return;
 
       setIsStreaming(true);
 
-      // Adiciona mensagem do usuário na tela
-      addMessage({
+      // Adiciona mensagem do usuário no histórico do caderno ativo
+      addMessageToNotebook(activeNotebookId, {
         role: "user",
         content: queryText,
       });
 
       // Cria mensagem placeholder do assistente para streaming progressivo
-      addMessage({
+      addMessageToNotebook(activeNotebookId, {
         role: "assistant",
         content: "",
         citations: [],
       });
 
-      const historyPayload = messages.slice(-6).map((m) => ({
+      const currentMsgs = getMessages(activeNotebookId);
+      const historyPayload = currentMsgs.slice(-6).map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -168,15 +188,19 @@ export function ChatPanel() {
         });
 
         if (!response.ok) {
-          throw new Error(`Erro na conexão SSE: HTTP ${response.status}`);
+          throw new Error(`Falha no streaming: HTTP ${response.status}`);
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("ReadableStream não suportado pelo navegador.");
+        if (!response.body) {
+          throw new Error("Corpo da resposta vazio.");
+        }
 
-        const decoder = new TextDecoder();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
         let accumulatedText = "";
-        let currentCitations: DocumentCitation[] = [];
+        let finalCitations: DocumentCitation[] = [];
+        let modelUsed = "gemini-3.5-flash-lite";
+
         let buffer = "";
 
         while (true) {
@@ -184,53 +208,77 @@ export function ChatPanel() {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n\n");
+          const lines = buffer.split("\n");
           buffer = lines.pop() || "";
 
-          for (const block of lines) {
-            if (!block.trim()) continue;
-            const eventMatch = block.match(/^event:\s*(\w+)/m);
-            const dataMatch = block.match(/^data:\s*(.+)$/m);
+          let currentEvent = "";
 
-            if (!eventMatch || !dataMatch) continue;
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
 
-            const eventType = eventMatch[1];
-            const dataRaw = dataMatch[1];
+            if (trimmed.startsWith("event:")) {
+              currentEvent = trimmed.replace("event:", "").trim();
+              continue;
+            }
 
-            try {
-              const dataObj = JSON.parse(dataRaw);
+            if (trimmed.startsWith("data:")) {
+              const dataStr = trimmed.replace("data:", "").trim();
+              try {
+                const parsed = JSON.parse(dataStr);
 
-              if (eventType === "citations") {
-                currentCitations = dataObj;
-                updateLastMessageContent(accumulatedText, currentCitations);
-              } else if (eventType === "delta") {
-                accumulatedText += dataObj.text || "";
-                updateLastMessageContent(accumulatedText, currentCitations);
-              } else if (eventType === "done") {
-                if (dataObj.thread_id && !activeThreadId) {
-                  setActiveThreadId(dataObj.thread_id);
+                if (currentEvent === "citations") {
+                  finalCitations = parsed as DocumentCitation[];
+                  updateLastMessageForNotebook(
+                    activeNotebookId,
+                    accumulatedText,
+                    finalCitations,
+                    modelUsed
+                  );
+                } else if (currentEvent === "delta") {
+                  accumulatedText += parsed.text || "";
+                  updateLastMessageForNotebook(
+                    activeNotebookId,
+                    accumulatedText,
+                    finalCitations,
+                    modelUsed
+                  );
+                } else if (currentEvent === "done") {
+                  if (parsed.thread_id) {
+                    setActiveThreadIdForNotebook(
+                      activeNotebookId,
+                      parsed.thread_id
+                    );
+                  }
+                  if (parsed.model) {
+                    modelUsed = parsed.model;
+                  }
+                  updateLastMessageForNotebook(
+                    activeNotebookId,
+                    accumulatedText,
+                    finalCitations,
+                    modelUsed
+                  );
+                } else if (currentEvent === "error") {
+                  toast.error("Erro no processamento", {
+                    description: parsed.detail || "Falha no pipeline RAG.",
+                  });
                 }
-                updateLastMessageContent(
-                  accumulatedText,
-                  currentCitations,
-                  dataObj.model
-                );
-              } else if (eventType === "error") {
-                toast.error("Erro na geração da IA", {
-                  description: dataObj.error,
-                });
+              } catch {
+                // Linha de texto simples
               }
-            } catch (pErr) {
-              console.warn("Erro ao fazer parse de evento SSE:", pErr);
             }
           }
         }
       } catch (err: any) {
-        console.error("Falha no streaming do chat:", err);
-        const msg = getErrorMessage(err, "Falha ao conectar com o serviço de IA.");
-        toast.error("Erro no chat", { description: msg });
-        updateLastMessageContent(
-          "Ocorreu uma instabilidade na transmissão da resposta. Por favor, tente novamente."
+        console.error("Erro no streaming SSE:", err);
+        const msg = getErrorMessage(err, "Falha de conexão com o chat RAG.");
+        toast.error("Erro na consulta", { description: msg });
+        updateLastMessageForNotebook(
+          activeNotebookId,
+          "Desculpe, ocorreu uma falha ao consultar as fontes deste caderno. Por favor, tente novamente.",
+          [],
+          "gemini-3.5-flash-lite"
         );
       } finally {
         setIsStreaming(false);
@@ -242,12 +290,12 @@ export function ChatPanel() {
       activeNotebookId,
       activeThreadId,
       isUUID,
-      messages,
       selectedSourceIds,
       token,
-      addMessage,
-      updateLastMessageContent,
-      setActiveThreadId,
+      addMessageToNotebook,
+      getMessages,
+      updateLastMessageForNotebook,
+      setActiveThreadIdForNotebook,
       setIsStreaming,
       queryClient,
     ]
@@ -261,131 +309,103 @@ export function ChatPanel() {
     executeStreamChat(query);
   };
 
-  const handlePromptSuggestion = (text: string) => {
-    executeStreamChat(text);
+  const handlePromptSuggestion = (promptText: string) => {
+    if (isStreaming) return;
+    executeStreamChat(promptText);
   };
 
-  const activeCount = selectedSourceIds.length;
-  const sourcesBadgeLabel =
-    activeCount === 0
-      ? `${completedDocs.length} fontes ativas no caderno`
-      : activeCount === 1
-      ? "1 fonte selecionada"
-      : `${activeCount} fontes selecionadas`;
+  const handleClearHistory = () => {
+    clearMessagesForNotebook(activeNotebookId);
+    toast.info("Histórico de conversa deste caderno foi limpo.");
+  };
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-[#0C0D0E] relative overflow-hidden">
-      {/* Scrollable Research Memo & Dossier Feed */}
-      <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-8 space-y-10 pb-36">
+    <div className="flex-1 flex flex-col bg-[#0C0D0E] h-full overflow-hidden border-r border-[#242628]">
+      {/* 1. Header do Painel Central */}
+      <div className="h-10 border-b border-[#242628] px-4 flex items-center justify-between shrink-0 bg-[#0C0D0E]">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-[#85888C]">
+            Dossiê de Pesquisa & Chat
+          </span>
+          {isStreaming && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#D97706] bg-[#D97706]/10 px-2 py-0.5 rounded border border-[#D97706]/20 animate-pulse">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
+              Gerando Resposta...
+            </span>
+          )}
+        </div>
+
+        {messages.length > 0 && (
+          <button
+            onClick={handleClearHistory}
+            className="flex items-center gap-1 text-[11px] font-mono text-[#85888C] hover:text-[#EF4444] transition-colors cursor-pointer"
+            title="Limpar histórico deste caderno"
+          >
+            <Trash2 className="h-3 w-3" />
+            <span>Limpar Histórico</span>
+          </button>
+        )}
+      </div>
+
+      {/* 2. Área de Conteúdo / Diálogo */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
         {messages.length === 0 ? (
-          /* Structured Editorial Empty State */
-          <div className="flex min-h-[60vh] flex-col items-center justify-center text-center max-w-xl mx-auto space-y-6 animate-in fade-in duration-150 select-none">
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[#85888C] bg-[#161719] px-2 py-0.5 rounded border border-[#242628]">
-                Bancada de Investigação Documental
-              </span>
-              <h2 className="text-lg font-serif font-medium tracking-tight text-[#E3E3E3] pt-2">
-                Consulta e Extração de Evidências
-              </h2>
-              <p className="text-xs font-sans text-[#85888C] max-w-md mx-auto leading-relaxed">
-                Formule perguntas sobre o acervo anexado. Cada resposta é
-                apresentada no formato de memorando técnico com streaming em tempo real e citações auditáveis.
+          /* Estado Vazio com Catálogo Universal de Tarefas Rápidas (NotebookLM Style) */
+          <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-6 py-8">
+            <div className="space-y-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#161719] border border-[#242628] mx-auto text-[#D97706]">
+                <BookmarkCheck className="h-5 w-5" />
+              </div>
+              <h3 className="text-base font-sans font-medium text-[#E3E3E3]">
+                Assistente de Análise Documental
+              </h3>
+              <p className="text-xs font-serif text-[#85888C] max-w-md mx-auto leading-relaxed">
+                Faça perguntas em linguagem natural ou execute uma tarefa de síntese com embasamento rigoroso nas fontes indexadas.
               </p>
             </div>
 
-            {/* Contextual Analytical Suggestions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full text-left">
-              <button
-                onClick={() =>
-                  handlePromptSuggestion(
-                    "Identifique as partes envolvidas, o objeto principal e as obrigações fundamentais descritas no documento."
-                  )
-                }
-                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
-              >
-                <Scale className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Partes e Obrigações
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Mapear signatários e objeto.
-                  </p>
-                </div>
-              </button>
-
-              <button
-                onClick={() =>
-                  handlePromptSuggestion(
-                    "Monte uma tabela comparativa com todas as datas, prazos de entrega e valores financeiros mencionados nas fontes."
-                  )
-                }
-                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
-              >
-                <Calendar className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Prazos e Valores
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Tabela estruturada de datas e quantias.
-                  </p>
-                </div>
-              </button>
-
-              <button
-                onClick={() =>
-                  handlePromptSuggestion(
-                    "Identifique cláusulas de rescisão, multas aplicáveis e hipóteses de inadimplemento presentes nas fontes."
-                  )
-                }
-                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
-              >
-                <BookOpen className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Rescisão e Penalidades
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Sanções e regras de término.
-                  </p>
-                </div>
-              </button>
-
-              <button
-                onClick={() =>
-                  handlePromptSuggestion(
-                    "Liste os termos técnicos, definições e siglas estabelecidas ao longo do texto."
-                  )
-                }
-                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Glossário e Definições
-                  </h4>
-                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-                    Termos jurídicos e abreviações.
-                  </p>
-                </div>
-              </button>
+            {/* Grid 2x3 de Tarefas Prontas Universais */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
+              {UNIVERSAL_QUICK_TASKS.map((task) => {
+                const Icon = task.icon;
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => handlePromptSuggestion(task.prompt)}
+                    disabled={isStreaming}
+                    className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group disabled:opacity-50"
+                  >
+                    <Icon className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
+                        <span>{task.title}</span>
+                        <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
+                          ↵
+                        </span>
+                      </h4>
+                      <p className="text-[10px] font-mono text-[#85888C] mt-0.5 line-clamp-2">
+                        {task.subtitle}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
             {completedDocs.length === 0 && (
               <div className="rounded border border-dashed border-[#242628] bg-[#161719]/40 p-3 max-w-sm text-xs font-sans text-[#85888C]">
-                Nenhum PDF vinculado a este caderno.{" "}
+                Nenhum documento vinculado a este caderno.{" "}
                 <button
                   onClick={() => setAddSourceModalOpen(true)}
                   className="text-[#E3E3E3] underline font-medium hover:text-white cursor-pointer ml-1"
                 >
-                  Anexar documento
+                  Anexar arquivo PDF
                 </button>
               </div>
             )}
           </div>
         ) : (
-          /* Continuous Research Memo / Dossier Entries */
+          /* Entradas do Dossiê Contínuo */
           messages.map((msg, index) => {
             const isUser = msg.role === "user";
             const isLatestAssistant =
@@ -436,7 +456,7 @@ export function ChatPanel() {
                   </div>
                 </div>
 
-                {/* Editorial Body (Source Serif 4) with streaming pulsing cursor */}
+                {/* Editorial Body (Source Serif 4) com cursor de streaming pulsante */}
                 <div className="font-serif text-sm text-[#E3E3E3] leading-relaxed space-y-3 prose prose-invert max-w-none">
                   {msg.content ? (
                     <>
@@ -493,58 +513,62 @@ export function ChatPanel() {
             );
           })
         )}
-
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Anchored Bottom Command Bar */}
-      <div className="absolute bottom-0 left-0 right-0 border-t border-[#242628] bg-[#161719]/95 backdrop-blur-sm p-3 px-6 sm:px-12 z-20">
-        <form
-          onSubmit={handleSubmit}
-          className="max-w-3xl mx-auto flex items-center gap-2 rounded border border-[#242628] bg-[#0C0D0E] px-3 py-1.5 focus-within:border-[#383B40] transition-colors"
-        >
-          {/* Active Sources Scope Pill */}
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-[#85888C] bg-[#161719] px-2 py-0.5 rounded border border-[#242628] shrink-0">
-            <BookmarkCheck className="h-3 w-3 text-[#10B981]" />
-            <span>{sourcesBadgeLabel}</span>
-          </span>
-
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            disabled={isStreaming}
-            placeholder="Formule uma pergunta ou requisição sobre os documentos..."
-            className="flex-1 bg-transparent px-1 py-1 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none disabled:opacity-50 font-sans"
-          />
-
-          {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={clearMessages}
-              title="Limpar histórico de pesquisa"
-              className="p-1 rounded text-[#85888C] hover:text-[#E3E3E3] hover:bg-[#161719] transition-colors cursor-pointer"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+      {/* 3. Barra Inferior de Entrada Fixa */}
+      <div className="p-4 border-t border-[#242628] bg-[#0C0D0E] shrink-0">
+        <div className="max-w-3xl mx-auto space-y-2">
+          {selectedSourceIds.length > 0 && (
+            <div className="flex items-center gap-2 text-[10px] font-mono text-[#D97706] bg-[#D97706]/10 px-2 py-0.5 rounded border border-[#D97706]/20">
+              <span>Filtrando estritamente em {selectedSourceIds.length} fonte(s) selecionada(s)</span>
+            </div>
           )}
 
-          <button
-            type="submit"
-            disabled={isStreaming || !inputText.trim()}
-            className="flex items-center gap-1 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] font-medium px-2.5 py-1 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          <form
+            onSubmit={handleSubmit}
+            className="relative flex items-center rounded-lg border border-[#242628] bg-[#161719] focus-within:border-[#383B40] transition-colors shadow-sm"
           >
-            {isStreaming ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <>
-                <span className="font-mono text-[10px]">Executar</span>
-                <CornerDownLeft className="h-3 w-3" />
-              </>
-            )}
-          </button>
-        </form>
+            <textarea
+              rows={1}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+              placeholder={
+                completedDocs.length === 0
+                  ? "Anexe documentos ao caderno para habilitar a consulta..."
+                  : "Pergunte sobre os documentos ou solicite uma análise estruturada..."
+              }
+              disabled={isStreaming}
+              className="w-full resize-none bg-transparent px-3.5 py-3 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none font-sans max-h-32"
+            />
+
+            <div className="flex items-center gap-1.5 pr-2.5">
+              <button
+                type="submit"
+                disabled={!inputText.trim() || isStreaming}
+                className="flex h-7 w-7 items-center justify-center rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] transition-colors disabled:opacity-40 disabled:hover:bg-[#E3E3E3] cursor-pointer"
+                title="Enviar consulta (Enter)"
+              >
+                {isStreaming ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CornerDownLeft className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          </form>
+          <div className="flex items-center justify-between text-[10px] font-mono text-[#55585D] px-1">
+            <span>Enter para enviar • Shift + Enter para quebra de linha</span>
+            <span>RAG com busca vetorial pgvector & Gemini 3.5</span>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
