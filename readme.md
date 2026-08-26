@@ -245,9 +245,40 @@ pytest
 
 ---
 
+## 📊 RAG Evaluation & Observabilidade
+
+A plataforma conta com um sistema de avaliação quantitativa e observabilidade contínua de RAG baseado em execuções reais, com dataset versionável e zero dados simulados.
+
+### Métricas Implementadas:
+1. **RAG Quality**:
+   - **Recall@5**: Proporção de trechos factuais essenciais recuperados no Top-5.
+   - **MRR@5 (Mean Reciprocal Rank)**: $1 / \text{posição do 1º chunk relevante}$.
+   - **Faithfulness**: Avaliação factual com decomposição de afirmações atômicas e validação booleana estrita contra o contexto.
+   - **Answer Relevancy**: Verificação de aderência direta da resposta à pergunta do usuário.
+2. **Performance & Latências Reais**:
+   - Percentis **P50**, **P95**, **P99** e Média Real calculados estatisticamente sobre $N$ amostras.
+   - Breakdown de latência: Retrieval Time e LLM Generation Time.
+3. **Reliability & Confiabilidade**:
+   - **Success Rate**, **Error Rate** (com categorização de falhas) e **Empty Retrieval Rate**.
+
+### Como Executar a Avaliação via CLI:
+```bash
+# Executa a bateria de avaliação e salva o relatório
+python -m app.evaluation.runner --dataset backend/app/evaluation/datasets/contracts_eval_v1.json --name "Experimento A" --top_k 5
+
+# Para definir uma execução como Baseline oficial:
+python -m app.evaluation.runner --baseline --name "Baseline Oficial v1.0"
+```
+
+Acesse o painel interativo no frontend: **`http://localhost:3001/evaluation`**.
+
+---
+
 ## 🔒 Boas Práticas e Segurança Aplicadas
 
 - **Isolamento Multi-Tenant**: Todas as operações de leitura, deleção, busca vetorial e chat aplicam filtro explícito por `owner_id == current_user.id` no banco de dados.
+- **Evidence-First Architecture**: Citações canônicas indexadas diretamente ao texto original de custódia.
+
 - **Índice Vetorial HNSW**: Indexação de alta velocidade $O(\log N)$ para recuperação de embeddings de 768 dimensões com métrica de distância de cosseno.
 - **Proteção Anti-Alucinação**: Prompts de sistema rigorosos instruindo o Gemini 3.7 Flash a responder estritamente baseado nas fontes recuperadas, indicando ausência de contexto quando aplicável.
 - **Sessão Isolada em Background**: Background tasks gerenciam sua própria sessão de banco de dados (`SessionLocal`), prevenindo vazamento de conexões.

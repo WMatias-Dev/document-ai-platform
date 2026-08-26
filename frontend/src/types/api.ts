@@ -104,3 +104,104 @@ export interface ChatResponse {
   citations: DocumentCitation[];
   model: string;
 }
+
+// ==========================================
+// RAG Evaluation & Observability Types
+// ==========================================
+
+export interface LatencyBreakdown {
+  total_latency_ms: number;
+  query_embedding_latency_ms?: number | null;
+  retrieval_latency_ms?: number | null;
+  llm_generation_latency_ms?: number | null;
+}
+
+export interface EvaluationTrace {
+  query_id: string;
+  question: string;
+  expected_answer?: string | null;
+  generated_answer: string;
+  model_used: string;
+  retrieved_chunk_count: number;
+  retrieved_snippets: string[];
+  recall_at_5: number;
+  mrr_at_5: number;
+  faithfulness_score?: number | null;
+  answer_relevancy_score?: number | null;
+  latency: LatencyBreakdown;
+  status: string;
+  error_type?: string | null;
+  error_message?: string | null;
+}
+
+export interface RAGQualityMetrics {
+  recall_at_5?: number | null;
+  mrr_at_5?: number | null;
+  faithfulness?: number | null;
+  answer_relevancy?: number | null;
+}
+
+export interface PerformanceMetrics {
+  sample_count: number;
+  p50_ms?: number | null;
+  p95_ms?: number | null;
+  p99_ms?: number | null;
+  mean_ms?: number | null;
+  min_ms?: number | null;
+  max_ms?: number | null;
+}
+
+export interface PipelineLatencyMetrics {
+  avg_parsing_time_ms?: number | null;
+  avg_embedding_time_ms?: number | null;
+  avg_retrieval_time_ms?: number | null;
+  avg_generation_time_ms?: number | null;
+}
+
+export interface ReliabilityMetrics {
+  total_queries: number;
+  successful_queries: number;
+  failed_queries: number;
+  empty_retrievals: number;
+  success_rate?: number | null;
+  error_rate?: number | null;
+  empty_retrieval_rate?: number | null;
+  error_breakdown: Record<string, number>;
+}
+
+export interface EvaluationRun {
+  run_id: string;
+  name: string;
+  is_baseline: boolean;
+  timestamp: string;
+  dataset_version: string;
+  dataset_size: number;
+  model_name: string;
+  embedding_model: string;
+  chunk_size: number;
+  chunk_overlap: number;
+  top_k: number;
+  rag_quality: RAGQualityMetrics;
+  performance: PerformanceMetrics;
+  pipeline: PipelineLatencyMetrics;
+  reliability: ReliabilityMetrics;
+  traces: EvaluationTrace[];
+}
+
+export interface EvaluationRunSummary {
+  run_id: string;
+  name: string;
+  is_baseline: boolean;
+  timestamp: string;
+  dataset_version: string;
+  dataset_size: number;
+  model_name: string;
+  recall_at_5?: number | null;
+  mrr_at_5?: number | null;
+  faithfulness?: number | null;
+  answer_relevancy?: number | null;
+  p50_latency_ms?: number | null;
+  p95_latency_ms?: number | null;
+  success_rate?: number | null;
+  empty_retrieval_rate?: number | null;
+}

@@ -34,10 +34,14 @@ export function HomeHeader() {
 
       {/* Right: Operational Controls & User Profile */}
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-1.5 rounded border border-[#242628] bg-[#161719] px-2.5 py-1 text-[11px] font-mono text-[#85888C]">
-          <ShieldCheck className="h-3 w-3 text-[#10B981]" />
-          <span>Ambiente Autenticado</span>
-        </div>
+        <Link
+          href="/evaluation"
+          title="Métricas do Sistema RAG"
+          className="hidden sm:inline-flex items-center gap-1.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] px-2.5 py-1 text-[11px] font-mono text-[#85888C] hover:text-[#E3E3E3] transition-colors"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+          <span>System Evaluation</span>
+        </Link>
 
         <button
           onClick={() => alert("Configurações do ambiente de pesquisa documental.")}
