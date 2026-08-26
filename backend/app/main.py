@@ -13,6 +13,7 @@ from app.api.routes_auth import router as auth_router
 from app.api.routes_documents import router as documents_router
 from app.api.routes_chat import router as chat_router
 from app.api.routes_notebooks import router as notebooks_router
+from app.api.routes_evaluation import router as evaluation_router
 from app.database.models.user import User
 from app.database.models.document import Document
 from app.database.models.document_chunk import DocumentChunk
@@ -69,6 +70,7 @@ app.include_router(auth_router)
 app.include_router(documents_router)
 app.include_router(chat_router)
 app.include_router(notebooks_router)
+app.include_router(evaluation_router)
 
 @app.get("/")
 def root():

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "eval-001",
+    "question": "Qual é a vigência inicial do contrato e qual o prazo de aviso prévio para denúncia imotivada?",
+    "expected_answer": "A vigência inicial é de 12 (doze) meses a contar da data de assinatura, e a denúncia imotivada exige aviso prévio formal por escrito com antecedência mínima de 30 (trinta) dias.",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": 2,
+    "canonical_text_snippets": [
+      "O presente contrato vigorará pelo prazo inicial de 12 (doze) meses",
+      "Qualquer das partes poderá rescindir o presente instrumento sem justa causa, mediante aviso prévio por escrito com antecedência mínima de 30 (trinta) dias"
+    ]
+  },
+  {
+    "id": "eval-002",
+    "question": "Qual é o valor da multa compensatória em caso de rescisão antecipada imotivada?",
+    "expected_answer": "Em caso de rescisão antecipada imotivada, incidirá multa compensatória no valor correspondente a 20% (vinte por cento) sobre o valor remanescente do saldo contratual.",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": 3,
+    "canonical_text_snippets": [
+      "multa compensatória não compensatória de 20% (vinte por cento) calculada sobre o valor das parcelas vincendas"
+    ]
+  },
+  {
+    "id": "eval-003",
+    "question": "Qual o Acordo de Nível de Serviço (SLA) de disponibilidade garantido e o prazo para resposta a incidentes críticos?",
+    "expected_answer": "A CONTRATADA garante disponibilidade mensal mínima de 99,9% (noventa e nove vírgula nove por cento), com tempo de primeira resposta para incidentes de severidade crítica de até 1 (uma) hora.",
+    "document_title": "Anexo_SLA_Seguranca.pdf",
+    "relevant_page": 1,
+    "canonical_text_snippets": [
+      "disponibilidade mínima mensal de 99,9%",
+      "Incidentes de Severidade 1 (Crítico): tempo de primeira resposta em até 1 (uma) hora"
+    ]
+  },
+  {
+    "id": "eval-004",
+    "question": "Quais são as medidas técnicas mínimas de segurança da informação e proteção de dados pessoais exigidas?",
+    "expected_answer": "As partes comprometem-se a utilizar criptografia em repouso (AES-256) e em trânsito (TLS 1.3), controle de acesso baseado em privilégio mínimo com autenticação de múltiplos fatores (MFA) e realização de backups diários imutáveis.",
+    "document_title": "Anexo_SLA_Seguranca.pdf",
+    "relevant_page": 2,
+    "canonical_text_snippets": [
+      "criptografia de dados em trânsito utilizando protocolo TLS 1.3 e em repouso utilizando AES-256",
+      "autenticação de múltiplos fatores (MFA) para todos os acessos administrativos",
+      "backups diários imutáveis retidos pelo período mínimo de 90 dias"
+    ]
+  },
+  {
+    "id": "eval-005",
+    "question": "Qual é a penalidade diária e o limite máximo de retenção por atraso na entrega das ordens de serviço?",
+    "expected_answer": "Incidirá multa de mora de 0,5% (meio por cento) por dia de atraso injustificado sobre o valor da respectiva ordem de serviço, limitada ao teto máximo de 10% (dez por cento).",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": 4,
+    "canonical_text_snippets": [
+      "multa moratória diária de 0,5% (cinco décimos por cento) sobre o valor da respectiva OS",
+      "limitada a 10% (dez por cento) do valor total contratado"
+    ]
+  },
+  {
+    "id": "eval-006",
+    "question": "Qual é a alíquota de ICMS ou substituição tributária aplicável sobre as faturas mensais de software?",
+    "expected_answer": "Esta informação não consta nos documentos fornecidos.",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": null,
+    "canonical_text_snippets": []
+  }
+]
