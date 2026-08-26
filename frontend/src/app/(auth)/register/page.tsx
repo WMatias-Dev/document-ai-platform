@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { FileText, Lock, Mail, User, Loader2, Sparkles } from "lucide-react";
+import { BookOpen, Lock, Mail, User, Loader2, ArrowRight } from "lucide-react";
 
 const registerSchema = z.object({
   name: z.string().min(2, "O nome deve ter pelo menos 2 caracteres"),
@@ -39,14 +39,14 @@ export default function RegisterPage() {
         password: data.password,
       });
 
-      toast.success("Conta criada com sucesso!", {
-        description: "Faça login com suas credenciais para continuar.",
+      toast.success("Credencial criada com sucesso!", {
+        description: "Faça login com seus dados para acessar o acervo.",
       });
 
       router.push("/login");
     } catch (err: any) {
       const msg =
-        err.response?.data?.detail || "Erro ao registrar usuário. Tente outro e-mail.";
+        err.response?.data?.detail || "Erro ao registrar credencial. Verifique os dados.";
       toast.error("Falha no cadastro", { description: msg });
     } finally {
       setIsLoading(false);
@@ -54,89 +54,90 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#090d16] px-4 py-12">
-      {/* Background Glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative w-full max-w-md">
-        {/* Card Header */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/25 mb-4">
-            <FileText className="h-7 w-7 text-white" />
+    <div className="flex min-h-screen items-center justify-center bg-[#0C0D0E] px-4 py-12 selection:bg-[#D97706]/20 selection:text-[#FDE68A]">
+      <div className="w-full max-w-sm space-y-6">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded bg-[#161719] border border-[#242628] text-[#E3E3E3]">
+            <BookOpen className="h-4 w-4" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Criar Nova Conta
-          </h1>
-          <p className="text-sm text-slate-400 mt-1.5 flex items-center gap-1.5">
-            Plataforma RAG com <Sparkles className="h-3.5 w-3.5 text-blue-400" /> Gemini 3.7 Flash
-          </p>
+          <div>
+            <h1 className="text-base font-sans font-medium text-[#E3E3E3] tracking-tight">
+              Document AI Platform
+            </h1>
+            <p className="text-[11px] font-mono text-[#85888C] uppercase tracking-wider mt-0.5">
+              Cadastro de Credencial
+            </p>
+          </div>
         </div>
 
-        {/* Register Form Card */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 backdrop-blur-xl shadow-2xl">
-          <h2 className="text-lg font-semibold text-white mb-6">
-            Cadastre-se na plataforma
-          </h2>
+        {/* Form Container */}
+        <div className="rounded border border-[#242628] bg-[#161719] p-6 shadow-xl space-y-5">
+          <div className="border-b border-[#242628] pb-3">
+            <h2 className="text-xs font-mono font-medium uppercase tracking-wider text-[#E3E3E3]">
+              Nova Credencial de Pesquisa
+            </h2>
+            <p className="text-[11px] font-sans text-[#85888C] mt-0.5">
+              Crie seu usuário para isolamento de acervos documentais.
+            </p>
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Nome Completo
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-[#85888C] mb-1">
+                Nome do Pesquisador / Usuário
               </label>
               <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#55585D]" />
                 <input
                   {...register("name")}
                   type="text"
-                  placeholder="Seu nome"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/70 pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                  placeholder="Seu nome completo"
+                  className="w-full rounded border border-[#242628] bg-[#0C0D0E] pl-8 pr-3 py-1.5 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:border-[#383B40] focus:outline-none transition-colors font-sans"
                 />
               </div>
               {errors.name && (
-                <p className="text-xs text-red-400 mt-1">
+                <p className="text-[10px] font-mono text-[#EF4444] mt-1">
                   {errors.name.message}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                E-mail
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-[#85888C] mb-1">
+                E-mail Institucional
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#55585D]" />
                 <input
                   {...register("email")}
                   type="email"
-                  placeholder="exemplo@empresa.com"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/70 pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                  placeholder="usuario@empresa.com"
+                  className="w-full rounded border border-[#242628] bg-[#0C0D0E] pl-8 pr-3 py-1.5 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:border-[#383B40] focus:outline-none transition-colors font-sans"
                 />
               </div>
               {errors.email && (
-                <p className="text-xs text-red-400 mt-1">
+                <p className="text-[10px] font-mono text-[#EF4444] mt-1">
                   {errors.email.message}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Senha
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-[#85888C] mb-1">
+                Chave de Acesso / Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#55585D]" />
                 <input
                   {...register("password")}
                   type="password"
                   placeholder="Mínimo 6 caracteres"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/70 pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                  className="w-full rounded border border-[#242628] bg-[#0C0D0E] pl-8 pr-3 py-1.5 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:border-[#383B40] focus:outline-none transition-colors font-sans"
                 />
               </div>
               {errors.password && (
-                <p className="text-xs text-red-400 mt-1">
+                <p className="text-[10px] font-mono text-[#EF4444] mt-1">
                   {errors.password.message}
                 </p>
               )}
@@ -145,24 +146,27 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full mt-2 flex items-center justify-center gap-1.5 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] py-2 text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Criando conta...
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Cadastrando...</span>
                 </>
               ) : (
-                "Cadastrar"
+                <>
+                  <span>Criar Credencial</span>
+                  <ArrowRight className="h-3 w-3" />
+                </>
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-slate-400">
-            Já tem uma conta?{" "}
+          <div className="pt-2 border-t border-[#242628] text-center text-[11px] font-sans text-[#85888C]">
+            Já possui credencial?{" "}
             <Link
               href="/login"
-              className="text-blue-400 hover:text-blue-300 font-medium underline underline-offset-4"
+              className="text-[#E3E3E3] hover:underline font-medium ml-0.5"
             >
               Fazer login
             </Link>

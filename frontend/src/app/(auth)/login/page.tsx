@@ -9,7 +9,7 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { FileText, Lock, Mail, Loader2, Sparkles } from "lucide-react";
+import { BookOpen, Lock, Mail, Loader2, ArrowRight } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Insira um e-mail válido"),
@@ -51,14 +51,15 @@ export default function LoginPage() {
       });
 
       setAuth(userRes.data, token);
-      toast.success("Bem-vindo de volta!", {
+      toast.success("Sessão iniciada com sucesso.", {
         description: `Conectado como ${userRes.data.email}`,
       });
 
-      router.push("/documents");
+      // Redireciona diretamente para a tela inicial (Catálogo de Cadernos)
+      router.push("/");
     } catch (err: any) {
       const msg =
-        err.response?.data?.detail || "E-mail ou senha incorretos.";
+        err.response?.data?.detail || "Credenciais inválidas. Verifique os dados.";
       toast.error("Falha na autenticação", { description: msg });
     } finally {
       setIsLoading(false);
@@ -66,69 +67,70 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#090d16] px-4 py-12">
-      {/* Background Glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative w-full max-w-md">
-        {/* Card Header */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/25 mb-4">
-            <FileText className="h-7 w-7 text-white" />
+    <div className="flex min-h-screen items-center justify-center bg-[#0C0D0E] px-4 py-12 selection:bg-[#D97706]/20 selection:text-[#FDE68A]">
+      <div className="w-full max-w-sm space-y-6">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded bg-[#161719] border border-[#242628] text-[#E3E3E3]">
+            <BookOpen className="h-4 w-4" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Document AI Platform
-          </h1>
-          <p className="text-sm text-slate-400 mt-1.5 flex items-center gap-1.5">
-            Busca Vetorial HNSW & RAG com <Sparkles className="h-3.5 w-3.5 text-blue-400" /> Gemini 3.7
-          </p>
+          <div>
+            <h1 className="text-base font-sans font-medium text-[#E3E3E3] tracking-tight">
+              Document AI Platform
+            </h1>
+            <p className="text-[11px] font-mono text-[#85888C] uppercase tracking-wider mt-0.5">
+              Research Workspace
+            </p>
+          </div>
         </div>
 
-        {/* Login Form Card */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 backdrop-blur-xl shadow-2xl">
-          <h2 className="text-lg font-semibold text-white mb-6">
-            Entre na sua conta
-          </h2>
+        {/* Form Container */}
+        <div className="rounded border border-[#242628] bg-[#161719] p-6 shadow-xl space-y-5">
+          <div className="border-b border-[#242628] pb-3">
+            <h2 className="text-xs font-mono font-medium uppercase tracking-wider text-[#E3E3E3]">
+              Acesso ao Ambiente
+            </h2>
+            <p className="text-[11px] font-sans text-[#85888C] mt-0.5">
+              Insira suas credenciais para acessar seus cadernos de pesquisa.
+            </p>
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                E-mail
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-[#85888C] mb-1">
+                E-mail Institucional
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#55585D]" />
                 <input
                   {...register("email")}
                   type="email"
-                  placeholder="exemplo@empresa.com"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/70 pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                  placeholder="usuario@empresa.com"
+                  className="w-full rounded border border-[#242628] bg-[#0C0D0E] pl-8 pr-3 py-1.5 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:border-[#383B40] focus:outline-none transition-colors font-sans"
                 />
               </div>
               {errors.email && (
-                <p className="text-xs text-red-400 mt-1">
+                <p className="text-[10px] font-mono text-[#EF4444] mt-1">
                   {errors.email.message}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Senha
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-[#85888C] mb-1">
+                Chave de Acesso / Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#55585D]" />
                 <input
                   {...register("password")}
                   type="password"
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/70 pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                  className="w-full rounded border border-[#242628] bg-[#0C0D0E] pl-8 pr-3 py-1.5 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:border-[#383B40] focus:outline-none transition-colors font-sans"
                 />
               </div>
               {errors.password && (
-                <p className="text-xs text-red-400 mt-1">
+                <p className="text-[10px] font-mono text-[#EF4444] mt-1">
                   {errors.password.message}
                 </p>
               )}
@@ -137,26 +139,29 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full mt-2 flex items-center justify-center gap-1.5 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] py-2 text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Autenticando...
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Validando credenciais...</span>
                 </>
               ) : (
-                "Entrar no Sistema"
+                <>
+                  <span>Entrar no Acervo</span>
+                  <ArrowRight className="h-3 w-3" />
+                </>
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-slate-400">
-            Ainda não tem conta?{" "}
+          <div className="pt-2 border-t border-[#242628] text-center text-[11px] font-sans text-[#85888C]">
+            Ainda não possui credencial?{" "}
             <Link
               href="/register"
-              className="text-blue-400 hover:text-blue-300 font-medium underline underline-offset-4"
+              className="text-[#E3E3E3] hover:underline font-medium ml-0.5"
             >
-              Cadastre-se gratuitamente
+              Criar conta
             </Link>
           </div>
         </div>
