@@ -6,22 +6,17 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { DocumentItem } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
-import { StatusBadge } from "../documents/status-badge";
-import {
-  X,
-  UploadCloud,
-  FileText,
-  Loader2,
-  Sparkles,
-  Link2,
-  FileUp,
-} from "lucide-react";
+import { X, Upload, Loader2, FileCheck } from "lucide-react";
 
 export function AddSourceModal() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isAddSourceModalOpen, setAddSourceModalOpen, toggleSourceSelection } =
-    useChatStore();
+  const {
+    activeNotebookId,
+    isAddSourceModalOpen,
+    setAddSourceModalOpen,
+    toggleSourceSelection,
+  } = useChatStore();
   const [dragActive, setDragActive] = useState(false);
   const [currentProcessingId, setCurrentProcessingId] = useState<string | null>(
     null
@@ -45,53 +40,64 @@ export function AddSourceModal() {
 
   useEffect(() => {
     if (processingDoc?.status === "COMPLETED") {
-      toast.success("Fonte adicionada!", {
-        description: `"${processingDoc.title}" pronta para consulta com Gemini 3.7.`,
+      toast.success("Documento indexado!", {
+        description: `"${processingDoc.title}" pronto para consulta.`,
       });
       toggleSourceSelection(processingDoc.id);
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      if (activeNotebookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["notebook_documents", activeNotebookId],
+        });
+        queryClient.invalidateQueries({ queryKey: ["notebooks"] });
+      }
     }
-  }, [processingDoc?.status, processingDoc?.id, processingDoc?.title, queryClient, toggleSourceSelection]);
+  }, [
+    processingDoc?.status,
+    processingDoc?.id,
+    processingDoc?.title,
+    queryClient,
+    toggleSourceSelection,
+    activeNotebookId,
+  ]);
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await apiClient.post("/documents/upload", formData, {
+      const url = activeNotebookId
+        ? `/documents/upload?notebook_id=${activeNotebookId}`
+        : "/documents/upload";
+
+      const res = await apiClient.post(url, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return res.data;
     },
     onSuccess: (data) => {
-      toast.info("Upload iniciado", {
-        description: "Processando fatiamento e embeddings HNSW...",
-      });
       setCurrentProcessingId(data.document_id);
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.info("Processando arquivo PDF...", {
+        description: "Extraindo texto e gerando vetores em background.",
+      });
     },
     onError: (err: any) => {
       const msg =
-        err.response?.data?.detail || "Erro ao realizar upload do arquivo.";
-      toast.error("Falha no upload", { description: msg });
+        err.response?.data?.detail || "Erro ao fazer upload do documento.";
+      toast.error(msg);
     },
   });
 
-  const handleFile = (file: File) => {
-    if (file.type !== "application/pdf") {
-      toast.error("Formato inválido", {
-        description: "Selecione um arquivo PDF.",
-      });
-      return;
-    }
-    uploadMutation.mutate(file);
-  };
+  if (!isAddSourceModalOpen) return null;
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
-    else if (e.type === "dragleave") setDragActive(false);
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -103,32 +109,37 @@ export function AddSourceModal() {
     }
   };
 
-  if (!isAddSourceModalOpen) return null;
+  const handleFile = (file: File) => {
+    if (file.type !== "application/pdf") {
+      toast.error("Formato inválido. Apenas arquivos PDF são aceitos.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("O arquivo excede o limite de 10 MB.");
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-[#1e1f20] p-6 shadow-2xl space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-lg rounded border border-[#242628] bg-[#161719] p-6 shadow-2xl space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0842a0]/40 text-[#a8c7fa] border border-[#a8c7fa]/20">
-              <FileUp className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-white">
-                Adicionar fontes ao Caderno
-              </h3>
-              <p className="text-xs text-zinc-400">
-                As fontes permitem que o Gemini 3.7 Flash fundamente suas respostas em fatos.
-              </p>
-            </div>
+        <div className="flex items-center justify-between border-b border-[#242628] pb-3">
+          <div>
+            <h3 className="text-sm font-sans font-medium text-[#E3E3E3]">
+              Anexar Fonte Documental
+            </h3>
+            <p className="text-[11px] font-mono text-[#85888C]">
+              [Ingestão e Indexação Vetorial]
+            </p>
           </div>
 
           <button
             onClick={() => setAddSourceModalOpen(false)}
-            className="rounded-full p-2 text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            className="rounded p-1 text-[#85888C] hover:text-[#E3E3E3] hover:bg-[#242628] transition-colors cursor-pointer"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -139,10 +150,10 @@ export function AddSourceModal() {
           onDragOver={handleDrag}
           onDrop={handleDrop}
           onClick={() => !uploadMutation.isPending && fileInputRef.current?.click()}
-          className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center rounded border border-dashed p-8 text-center transition-all cursor-pointer ${
             dragActive
-              ? "border-[#a8c7fa] bg-[#a8c7fa]/10 scale-[1.01]"
-              : "border-white/10 bg-[#131314]/60 hover:border-white/20 hover:bg-[#131314]"
+              ? "border-[#D97706] bg-[#D97706]/5"
+              : "border-[#242628] bg-[#0C0D0E] hover:border-[#383B40] hover:bg-[#161719]"
           } ${uploadMutation.isPending ? "opacity-60 pointer-events-none" : ""}`}
         >
           <input
@@ -157,48 +168,47 @@ export function AddSourceModal() {
             }}
           />
 
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#282a2c] text-[#a8c7fa] mb-3">
-            {uploadMutation.isPending ? (
-              <Loader2 className="h-7 w-7 animate-spin" />
-            ) : (
-              <UploadCloud className="h-7 w-7" />
-            )}
+          <div className="flex h-10 w-10 items-center justify-center rounded bg-[#161719] border border-[#242628] text-[#85888C] mb-2.5">
+            <Upload className="h-4 w-4" />
           </div>
 
-          <h4 className="text-sm font-semibold text-white">
-            Fazer upload de fontes (PDF)
-          </h4>
-          <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-            Arraste e solte seus arquivos PDF ou clique para selecionar do computador.
+          <p className="text-xs font-sans font-medium text-[#E3E3E3]">
+            Arraste um PDF ou clique para selecionar
           </p>
+          <span className="text-[10px] font-mono text-[#85888C] mt-1">
+            Limite máximo de 10 MB por arquivo
+          </span>
         </div>
 
-        {/* Progress Feedback Card */}
+        {/* Real-time Status Notice */}
         {processingDoc && (
-          <div className="rounded-2xl border border-white/10 bg-[#131314] p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <FileText className="h-5 w-5 text-[#a8c7fa] shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-white truncate">
-                  {processingDoc.title}
-                </p>
-                <p className="text-[11px] text-zinc-400 flex items-center gap-1 mt-0.5">
-                  <Sparkles className="h-3 w-3 text-[#a8c7fa]" /> Indexando no pgvector...
-                </p>
-              </div>
+          <div className="rounded border border-[#242628] bg-[#0C0D0E] p-3 flex items-center justify-between text-xs font-mono">
+            <div className="flex items-center gap-2 truncate max-w-[300px]">
+              <span className="text-[#E3E3E3]">{processingDoc.title}</span>
             </div>
-
-            <StatusBadge status={processingDoc.status} />
+            {processingDoc.status === "COMPLETED" ? (
+              <span className="text-[#10B981] flex items-center gap-1">
+                <FileCheck className="h-3.5 w-3.5" />
+                Indexado
+              </span>
+            ) : processingDoc.status === "ERROR" ? (
+              <span className="text-[#EF4444]">Falha</span>
+            ) : (
+              <span className="text-[#F59E0B] flex items-center gap-1">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {processingDoc.status}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Actions Footer */}
-        <div className="flex justify-end gap-3 pt-2">
+        {/* Footer */}
+        <div className="flex justify-end pt-2 border-t border-[#242628]">
           <button
             onClick={() => setAddSourceModalOpen(false)}
-            className="rounded-full px-5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 transition-colors cursor-pointer"
+            className="rounded px-4 py-1.5 text-xs font-sans text-[#85888C] hover:text-[#E3E3E3] hover:bg-[#242628] transition-colors cursor-pointer"
           >
-            Fechar
+            Concluir
           </button>
         </div>
       </div>

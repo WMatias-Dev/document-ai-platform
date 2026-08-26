@@ -12,11 +12,13 @@ class DocumentCreate(DocumentBase):
     filename: str
     file_path: Optional[str] = None
     content_type: Optional[str] = "application/pdf"
+    notebook_id: Optional[uuid.UUID] = None
 
 
 class DocumentResponse(DocumentBase):
     id: uuid.UUID
     owner_id: uuid.UUID
+    notebook_id: Optional[uuid.UUID] = None
     filename: Optional[str] = None
     file_path: Optional[str] = None
     content_type: Optional[str] = None
@@ -30,11 +32,14 @@ class DocumentUploadResponse(BaseModel):
     filename: str
     status: str
     message: str
+    notebook_id: Optional[uuid.UUID] = None
 
 
 class DocumentSearchRequest(BaseModel):
     query: str
+    notebook_id: Optional[uuid.UUID] = None
     document_id: Optional[uuid.UUID] = None
+    source_ids: Optional[list[uuid.UUID]] = None
     limit: int = 5
 
 

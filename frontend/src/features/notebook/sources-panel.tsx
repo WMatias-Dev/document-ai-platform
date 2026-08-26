@@ -7,17 +7,18 @@ import { DocumentItem } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import {
   Plus,
-  FileText,
   Trash2,
   CheckSquare,
   Square,
   Loader2,
-  Layers,
+  FileText,
+  FilePlus2,
 } from "lucide-react";
 
 export function SourcesPanel() {
   const queryClient = useQueryClient();
   const {
+    activeNotebookId,
     selectedSourceIds,
     toggleSourceSelection,
     selectAllSources,
@@ -26,9 +27,14 @@ export function SourcesPanel() {
   } = useChatStore();
 
   const { data: documents = [], isLoading } = useQuery<DocumentItem[]>({
-    queryKey: ["documents"],
+    queryKey: activeNotebookId
+      ? ["notebook_documents", activeNotebookId]
+      : ["documents"],
     queryFn: async () => {
-      const res = await apiClient.get("/documents/");
+      const url = activeNotebookId
+        ? `/notebooks/${activeNotebookId}/documents`
+        : "/documents/";
+      const res = await apiClient.get(url);
       return res.data;
     },
   });
@@ -40,11 +46,17 @@ export function SourcesPanel() {
       await apiClient.delete(`/documents/${id}`);
     },
     onSuccess: () => {
-      toast.success("Documento removido.");
+      toast.success("Fonte removida.");
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      if (activeNotebookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["notebook_documents", activeNotebookId],
+        });
+        queryClient.invalidateQueries({ queryKey: ["notebooks"] });
+      }
     },
     onError: () => {
-      toast.error("Erro ao remover documento.");
+      toast.error("Erro ao remover fonte.");
     },
   });
 
@@ -62,122 +74,119 @@ export function SourcesPanel() {
   };
 
   return (
-    <aside className="w-80 h-full border-r border-white/[0.06] bg-[#131314] flex flex-col shrink-0 select-none">
+    <aside className="w-72 h-full border-r border-[#242628] bg-[#0C0D0E] flex flex-col shrink-0 select-none">
       {/* Top Header */}
-      <div className="p-4 border-b border-white/[0.06] space-y-3">
+      <div className="p-3 border-b border-[#242628] space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium text-white tracking-wide">
-              Fontes Documentais
-            </h2>
-            <span className="text-xs text-zinc-500 font-mono">
-              ({documents.length})
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-[#85888C]">
+              Fontes em Custódia
+            </span>
+            <span className="text-[10px] font-mono text-[#55585D]">
+              [{documents.length}]
             </span>
           </div>
 
           <button
             onClick={() => setAddSourceModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e1f20] hover:bg-[#282a2c] text-zinc-200 border border-white/[0.08] px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 rounded bg-[#161719] hover:bg-[#222427] text-[#E3E3E3] border border-[#242628] hover:border-[#383B40] px-2 py-1 text-[11px] font-sans transition-colors cursor-pointer"
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Adicionar</span>
+            <Plus className="h-3 w-3" />
+            <span>Anexar PDF</span>
           </button>
         </div>
 
-        {/* Select All */}
+        {/* Select All Row */}
         {completedDocs.length > 0 && (
           <div
             onClick={handleToggleAll}
-            className="flex items-center justify-between rounded-xl bg-[#1e1f20]/40 hover:bg-[#1e1f20] px-3 py-2 text-xs text-zinc-300 transition-colors cursor-pointer border border-white/[0.04]"
+            className="flex items-center justify-between rounded bg-[#161719]/40 hover:bg-[#161719] px-2 py-1.5 text-xs text-[#85888C] hover:text-[#E3E3E3] transition-colors cursor-pointer border border-[#242628]/60"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {isAllSelected ? (
-                <CheckSquare className="h-4 w-4 text-zinc-200" />
+                <CheckSquare className="h-3.5 w-3.5 text-[#E3E3E3]" />
               ) : (
-                <Square className="h-4 w-4 text-zinc-500" />
+                <Square className="h-3.5 w-3.5 text-[#55585D]" />
               )}
-              <span className="text-xs text-zinc-300">
+              <span className="text-[11px] font-sans">
                 Selecionar todas as fontes
               </span>
             </div>
-            <span className="text-[11px] text-zinc-500 font-mono">
+            <span className="text-[10px] font-mono text-[#55585D]">
               {selectedSourceIds.length} ativas
             </span>
           </div>
         )}
       </div>
 
-      {/* Sources List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+      {/* Sources Linear List */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center p-8 text-zinc-500">
-            <Loader2 className="h-4 w-4 animate-spin text-zinc-400 mb-2" />
-            <p className="text-xs">Carregando acervo...</p>
+          <div className="flex flex-col items-center justify-center p-8 text-[#85888C]">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#85888C] mb-1.5" />
+            <p className="text-[11px] font-mono">Indexando acervo...</p>
           </div>
         ) : documents.length === 0 ? (
-          <div className="p-6 text-center rounded-2xl border border-dashed border-white/10 bg-[#1e1f20]/20 mt-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1e1f20] text-zinc-500 mx-auto mb-2">
-              <Layers className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-medium text-zinc-300">
+          <div className="p-4 text-center rounded border border-dashed border-[#242628] bg-[#161719]/20 mt-3">
+            <FileText className="h-4 w-4 text-[#55585D] mx-auto mb-1.5" />
+            <p className="text-xs font-sans text-[#E3E3E3]">
               Nenhuma fonte anexada
             </p>
-            <p className="text-[11px] text-zinc-500 mt-0.5">
-              Anexe documentos em PDF para iniciar a análise.
+            <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
+              Anexe PDFs para indexação
             </p>
             <button
               onClick={() => setAddSourceModalOpen(true)}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#1e1f20] hover:bg-[#282a2c] text-zinc-300 border border-white/10 px-3 py-1 text-xs transition-colors cursor-pointer"
+              className="mt-2.5 inline-flex items-center gap-1 rounded bg-[#161719] hover:bg-[#222427] text-[#E3E3E3] border border-[#242628] px-2 py-1 text-[11px] font-sans transition-colors cursor-pointer"
             >
-              <Plus className="h-3 w-3" /> Anexar PDF
+              <Plus className="h-3 w-3" /> Anexar
             </button>
           </div>
         ) : (
-          documents.map((doc) => {
+          documents.map((doc, idx) => {
             const isCompleted = doc.status === "COMPLETED";
             const isSelected = selectedSourceIds.includes(doc.id);
+            const docCode = `FNT-0${idx + 1}`;
 
             return (
               <div
                 key={doc.id}
-                className={`group relative flex items-center justify-between gap-2.5 rounded-xl p-2.5 border transition-all ${
+                className={`group flex items-center justify-between gap-2 rounded px-2.5 py-2 border transition-all ${
                   isSelected
-                    ? "bg-[#282a2c] border-white/20 shadow-sm"
-                    : "bg-[#1e1f20]/60 hover:bg-[#1e1f20] border-white/[0.04]"
-                } ${!isCompleted ? "opacity-75" : ""}`}
+                    ? "bg-[#161719] border-[#383B40]"
+                    : "bg-[#0C0D0E] hover:bg-[#161719]/60 border-[#242628]/80"
+                }`}
               >
                 <div
                   onClick={() => isCompleted && toggleSourceSelection(doc.id)}
-                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                  className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
                 >
                   {isCompleted ? (
                     isSelected ? (
-                      <CheckSquare className="h-4 w-4 text-zinc-200 shrink-0" />
+                      <CheckSquare className="h-3.5 w-3.5 text-[#E3E3E3] shrink-0" />
                     ) : (
-                      <Square className="h-4 w-4 text-zinc-500 shrink-0 group-hover:text-zinc-300" />
+                      <Square className="h-3.5 w-3.5 text-[#55585D] shrink-0 group-hover:text-[#85888C]" />
                     )
                   ) : (
-                    <Loader2 className="h-4 w-4 text-zinc-400 animate-spin shrink-0" />
+                    <Loader2 className="h-3.5 w-3.5 text-[#F59E0B] animate-spin shrink-0" />
                   )}
 
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400 border border-white/5">
-                    <FileText className="h-3.5 w-3.5" />
-                  </div>
-
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-zinc-200 truncate leading-snug">
+                    <p className="text-xs font-sans font-medium text-[#E3E3E3] truncate leading-tight">
                       {doc.title}
                     </p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[#85888C]">
+                      <span>{docCode}</span>
+                      <span>·</span>
                       {isCompleted ? (
-                        <span className="text-[10px] text-zinc-400 flex items-center gap-1 font-mono">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          Indexado
+                        <span className="text-[#10B981] flex items-center gap-1">
+                          <span className="h-1 w-1 rounded-full bg-[#10B981]" />
+                          Pronto
                         </span>
                       ) : (
-                        <span className="text-[10px] text-amber-400/90 flex items-center gap-1 font-mono">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
-                          Processando...
+                        <span className="text-[#F59E0B] flex items-center gap-1">
+                          <span className="h-1 w-1 rounded-full bg-[#F59E0B] animate-pulse" />
+                          Indexando
                         </span>
                       )}
                     </div>
@@ -186,10 +195,10 @@ export function SourcesPanel() {
 
                 <button
                   onClick={() => deleteMutation.mutate(doc.id)}
-                  title="Remover fonte"
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                  title="Excluir fonte"
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#85888C] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all cursor-pointer"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </div>
             );

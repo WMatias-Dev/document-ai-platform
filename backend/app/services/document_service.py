@@ -43,9 +43,11 @@ class DocumentService:
         file: UploadFile,
         owner_id: uuid.UUID,
         background_tasks: BackgroundTasks,
+        notebook_id: Optional[uuid.UUID] = None,
     ) -> dict:
         """
-        Recebe o upload, persiste o arquivo físico e registra os metadados iniciais no banco.
+        Recebe o upload, persiste o arquivo físico e registra os metadados iniciais no banco,
+        vinculando opcionalmente ao notebook_id especificado.
         """
         try:
             file_path = await self.storage.save_file(file)
@@ -62,12 +64,12 @@ class DocumentService:
 
         filename_real = file.filename or "documento.pdf"
 
-        # Preenche os dados completos do arquivo recuperados do UploadFile/Storage
         document_in = DocumentCreate(
             title=filename_real,
             filename=filename_real,
             file_path=str(file_path),
             content_type=file.content_type or "application/pdf",
+            notebook_id=notebook_id,
         )
 
         document_record = self.repository.create(
@@ -81,7 +83,11 @@ class DocumentService:
             str(file_path),
         )
 
-        return {"document_id": document_record.id, "status": "processing"}
+        return {
+            "document_id": document_record.id,
+            "status": "processing",
+            "notebook_id": notebook_id,
+        }
 
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
         """
@@ -182,7 +188,9 @@ class DocumentService:
         raw_results = self.repository.similarity_search(
             query_embedding=query_embedding,
             user_id=current_user.id,
+            notebook_id=search_in.notebook_id,
             document_id=search_in.document_id,
+            source_ids=search_in.source_ids,
             limit=search_in.limit,
         )
 

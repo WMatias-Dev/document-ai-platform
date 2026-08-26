@@ -19,6 +19,7 @@ class DocumentRepository:
             file_path=getattr(document_in, "file_path", ""),
             content_type=getattr(document_in, "content_type", "application/pdf"),
             owner_id=owner_id,
+            notebook_id=getattr(document_in, "notebook_id", None),
         )
         self.db.add(db_document)
         self.db.commit()
@@ -30,6 +31,17 @@ class DocumentRepository:
 
     def get_all_by_owner(self, owner_id: uuid.UUID) -> List[Document]:
         return self.db.query(Document).filter(Document.owner_id == owner_id).all()
+
+    def get_all_by_notebook(
+        self, notebook_id: uuid.UUID, owner_id: uuid.UUID
+    ) -> List[Document]:
+        return (
+            self.db.query(Document)
+            .filter(
+                Document.notebook_id == notebook_id, Document.owner_id == owner_id
+            )
+            .all()
+        )
 
     def delete(self, document: Document) -> None:
         self.db.delete(document)
@@ -79,15 +91,18 @@ class DocumentRepository:
         self,
         query_embedding: List[float],
         user_id: uuid.UUID,
+        notebook_id: Optional[uuid.UUID] = None,
         document_id: Optional[uuid.UUID] = None,
+        source_ids: Optional[List[uuid.UUID]] = None,
         limit: int = 5,
     ) -> List[tuple[DocumentChunk, float]]:
         """
         Executa busca vetorial por similaridade de cosseno nos chunks
-        garantindo isolamento de ownership (pertencentes ao user_id).
-        Retorna uma lista de tuplas (DocumentChunk, score_de_similaridade).
+        garantindo isolamento de ownership e filtro estrito por Notebook / Fontes.
         """
-        distance_expr = DocumentChunk.embedding.cosine_distance(query_embedding).label("distance")
+        distance_expr = DocumentChunk.embedding.cosine_distance(
+            query_embedding
+        ).label("distance")
 
         query = (
             self.db.query(DocumentChunk, distance_expr)
@@ -96,7 +111,14 @@ class DocumentRepository:
             .filter(DocumentChunk.embedding.isnot(None))
         )
 
-        if document_id:
+        # Filtro estrito por Notebook
+        if notebook_id:
+            query = query.filter(Document.notebook_id == notebook_id)
+
+        # Filtro por lista de fontes específicas (checkboxes selecionados)
+        if source_ids and len(source_ids) > 0:
+            query = query.filter(Document.id.in_(source_ids))
+        elif document_id:
             query = query.filter(Document.id == document_id)
 
         results = query.order_by(distance_expr.asc()).limit(limit).all()

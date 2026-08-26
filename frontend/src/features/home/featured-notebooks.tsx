@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FEATURED_TEMPLATES, Notebook } from "@/stores/useNotebookStore";
 import { useChatStore } from "@/stores/useChatStore";
-import { Sparkles, ArrowRight, Globe, Layers, BookOpen } from "lucide-react";
+import { ArrowUpRight, FolderGit2, FileText } from "lucide-react";
 
 export function FeaturedNotebooks() {
   const router = useRouter();
@@ -15,62 +15,51 @@ export function FeaturedNotebooks() {
   };
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       {/* Section Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-[#242628] pb-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-white tracking-tight">
-            Notebooks em destaque
+          <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-[#85888C]">
+            Modelos de Investigação Documental
           </h2>
-          <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] font-medium text-zinc-400">
-            Templates
+          <span className="text-[10px] font-mono text-[#55585D]">
+            [Estruturas Pré-configuradas]
           </span>
         </div>
-
-        <button
-          onClick={() => alert("Catálogo completo de templates disponível em breve!")}
-          className="inline-flex items-center gap-1 text-xs font-medium text-[#a8c7fa] hover:text-[#c2e7ff] transition-colors cursor-pointer"
-        >
-          <span>Ver tudo</span>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
       </div>
 
-      {/* Grid of Featured Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {FEATURED_TEMPLATES.map((item) => (
+      {/* Grid of Clean Research Templates */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {FEATURED_TEMPLATES.map((item, idx) => (
           <div
             key={item.id}
             onClick={() => handleOpenFeatured(item)}
-            className="group relative flex flex-col justify-between rounded-3xl border border-white/10 bg-[#1e1f20] hover:border-white/20 p-5 transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer overflow-hidden min-h-[190px]"
+            className="group flex flex-col justify-between rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-4 transition-all cursor-pointer min-h-[140px]"
           >
-            {/* Background Decorative Gradient */}
-            <div
-              className={`absolute inset-0 bg-gradient-to-br ${item.coverGradient} opacity-30 group-hover:opacity-50 transition-opacity pointer-events-none`}
-            />
-
-            {/* Top Category Badge */}
-            <div className="relative z-10 flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#c2e7ff] border border-white/10">
-                <Globe className="h-3 w-3 text-[#a8c7fa]" />
+            {/* Top Category & Identifier */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
                 {item.category}
+              </span>
+              <span className="text-[10px] font-mono text-[#55585D]">
+                MOD-0{idx + 1}
               </span>
             </div>
 
-            {/* Middle Title */}
-            <div className="relative z-10 my-3">
-              <h3 className="text-sm font-semibold text-white group-hover:text-[#a8c7fa] transition-colors line-clamp-2 leading-snug">
+            {/* Title with subtle hover */}
+            <div className="my-2.5">
+              <h3 className="text-xs font-medium text-[#E3E3E3] group-hover:text-white line-clamp-2 leading-relaxed">
                 {item.title}
               </h3>
             </div>
 
-            {/* Bottom Metadata Footer */}
-            <div className="relative z-10 flex items-center justify-between text-[11px] text-zinc-400 font-medium pt-2 border-t border-white/5">
-              <span>{item.updatedAt}</span>
-              <span className="flex items-center gap-1 font-mono text-zinc-300">
-                <Layers className="h-3 w-3 text-zinc-400" />
-                {item.sourceCount} fontes
-              </span>
+            {/* Metadata Footer */}
+            <div className="flex items-center justify-between text-[10px] font-mono text-[#85888C] pt-2 border-t border-[#242628]/60">
+              <span>{item.sourceCount} fontes base</span>
+              <div className="flex items-center gap-0.5 text-[#85888C] group-hover:text-[#E3E3E3] transition-colors">
+                <span>Abrir</span>
+                <ArrowUpRight className="h-3 w-3" />
+              </div>
             </div>
           </div>
         ))}

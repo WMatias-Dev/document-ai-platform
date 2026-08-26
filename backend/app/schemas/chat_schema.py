@@ -24,8 +24,14 @@ class DocumentCitation(BaseModel):
 class ChatRequest(BaseModel):
     """Requisição de pergunta para o Agente RAG."""
     message: str = Field(..., min_length=1, description="Pergunta ou mensagem do usuário.")
+    notebook_id: Optional[uuid.UUID] = Field(
+        None, description="Filtro opcional para consultar apenas documentos pertencentes a um caderno."
+    )
     document_id: Optional[uuid.UUID] = Field(
         None, description="Filtro opcional para consultar apenas um documento específico."
+    )
+    source_ids: Optional[List[uuid.UUID]] = Field(
+        None, description="Lista opcional de IDs de documentos selecionados via checkbox."
     )
     history: Optional[List[ChatMessage]] = Field(
         default_factory=list,

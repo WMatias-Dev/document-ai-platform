@@ -17,6 +17,17 @@ export interface AuthTokens {
   token_type: string;
 }
 
+export interface NotebookItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  emoji: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+  source_count: number;
+}
+
 export interface DocumentItem {
   id: string;
   title: string;
@@ -25,6 +36,13 @@ export interface DocumentItem {
   content_type?: string | null;
   status: DocumentStatus;
   owner_id: string;
+  notebook_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NotebookDetailResponse extends NotebookItem {
+  documents: DocumentItem[];
 }
 
 export interface UploadResponse {
@@ -32,6 +50,7 @@ export interface UploadResponse {
   status: string;
   message?: string;
   filename?: string;
+  notebook_id?: string | null;
 }
 
 export interface SearchResultChunk {
@@ -41,6 +60,14 @@ export interface SearchResultChunk {
   chunk_index: number;
   text_content: string;
   similarity_score: number;
+}
+
+export interface DocumentSearchRequest {
+  query: string;
+  notebook_id?: string | null;
+  document_id?: string | null;
+  source_ids?: string[] | null;
+  limit?: number;
 }
 
 export interface DocumentSearchResponse {
@@ -65,7 +92,9 @@ export interface DocumentCitation {
 
 export interface ChatRequest {
   message: string;
+  notebook_id?: string | null;
   document_id?: string | null;
+  source_ids?: string[] | null;
   history?: ChatMessage[];
   max_chunks?: number;
 }

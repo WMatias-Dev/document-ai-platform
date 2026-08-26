@@ -6,23 +6,24 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { ChatResponse, DocumentItem } from "@/types/api";
+import { ChatResponse, DocumentItem, DocumentCitation } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import {
   Send,
   Loader2,
-  FileText,
   Trash2,
   BookmarkCheck,
   Scale,
   Calendar,
-  Layers,
-  FileSpreadsheet,
   BookOpen,
+  FileSpreadsheet,
+  CornerDownLeft,
+  Search,
 } from "lucide-react";
 
 export function ChatPanel() {
   const {
+    activeNotebookId,
     messages,
     addMessage,
     clearMessages,
@@ -35,9 +36,14 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: documents = [] } = useQuery<DocumentItem[]>({
-    queryKey: ["documents"],
+    queryKey: activeNotebookId
+      ? ["notebook_documents", activeNotebookId]
+      : ["documents"],
     queryFn: async () => {
-      const res = await apiClient.get("/documents/");
+      const url = activeNotebookId
+        ? `/notebooks/${activeNotebookId}/documents`
+        : "/documents/";
+      const res = await apiClient.get(url);
       return res.data;
     },
   });
@@ -55,12 +61,10 @@ export function ChatPanel() {
         content: m.content,
       }));
 
-      const targetDocId =
-        selectedSourceIds.length === 1 ? selectedSourceIds[0] : null;
-
       const res = await apiClient.post<ChatResponse>("/chat/", {
         message: messageText,
-        document_id: targetDocId,
+        notebook_id: activeNotebookId,
+        source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
         history: historyPayload,
         max_chunks: 5,
       });
@@ -76,12 +80,13 @@ export function ChatPanel() {
       });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Erro ao consultar o acervo documental.";
-      toast.error("Não foi possível obter resposta", { description: msg });
+      const msg =
+        err.response?.data?.detail || "Erro ao consultar o acervo documental.";
+      toast.error("Falha na consulta", { description: msg });
       addMessage({
         role: "assistant",
         content:
-          "Ocorreu uma falha ao consultar as fontes documentais. Por favor, tente novamente.",
+          "Ocorreu uma falha ao recuperar evidências nos documentos. Por favor, reformule a consulta ou verifique as fontes selecionadas.",
       });
     },
   });
@@ -109,53 +114,52 @@ export function ChatPanel() {
     chatMutation.mutate(text);
   };
 
-  const activeSourcesCount = selectedSourceIds.length;
+  const activeCount = selectedSourceIds.length;
   const sourcesBadgeLabel =
-    activeSourcesCount === 0
-      ? `${completedDocs.length} fontes ativas`
-      : activeSourcesCount === 1
+    activeCount === 0
+      ? `${completedDocs.length} fontes ativas no caderno`
+      : activeCount === 1
       ? "1 fonte selecionada"
-      : `${activeSourcesCount} fontes selecionadas`;
+      : `${activeCount} fontes selecionadas`;
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-[#131314] relative overflow-hidden">
-      {/* Scrollable Conversation Feed */}
-      <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-8 space-y-6 pb-32">
+    <main className="flex-1 h-full flex flex-col bg-[#0C0D0E] relative overflow-hidden">
+      {/* Scrollable Research Memo & Dossier Feed */}
+      <div className="flex-1 overflow-y-auto px-6 sm:px-12 py-8 space-y-10 pb-36">
         {messages.length === 0 ? (
-          /* Editorial Document Workspace Empty State */
-          <div className="flex min-h-[65vh] flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-8 animate-in fade-in duration-200 select-none">
-            <div className="space-y-2">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#1e1f20] border border-white/[0.08] text-zinc-400 mx-auto">
-                <FileText className="h-5 w-5" />
-              </div>
-              <h2 className="text-xl sm:text-2xl font-medium tracking-tight text-zinc-100">
-                Análise e Consulta Documental
+          /* Structured Editorial Empty State */
+          <div className="flex min-h-[60vh] flex-col items-center justify-center text-center max-w-xl mx-auto space-y-6 animate-in fade-in duration-150 select-none">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#85888C] bg-[#161719] px-2 py-0.5 rounded border border-[#242628]">
+                Bancada de Investigação Documental
+              </span>
+              <h2 className="text-lg font-serif font-medium tracking-tight text-[#E3E3E3] pt-2">
+                Consulta e Extração de Evidências
               </h2>
-              <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
-                Faça perguntas diretamente sobre o conteúdo dos seus documentos.
-                As respostas são fundamentadas e acompanhadas de referências de página e trecho.
+              <p className="text-xs font-sans text-[#85888C] max-w-md mx-auto leading-relaxed">
+                Formule perguntas sobre o acervo anexado. Cada resposta é
+                apresentada no formato de memorando técnico com citações e
+                trechos auditáveis.
               </p>
             </div>
 
-            {/* Contextual Action Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl text-left">
+            {/* Contextual Analytical Suggestions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full text-left">
               <button
                 onClick={() =>
                   handlePromptSuggestion(
                     "Identifique as partes envolvidas, o objeto principal e as obrigações fundamentais descritas no documento."
                   )
                 }
-                className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-[#1e1f20]/60 hover:bg-[#1e1f20] hover:border-white/15 p-4 text-left transition-all cursor-pointer group"
+                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
               >
-                <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 group-hover:text-white">
-                  <Scale className="h-4 w-4" />
-                </div>
+                <Scale className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
                 <div>
-                  <h4 className="text-xs font-semibold text-zinc-200 group-hover:text-white">
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
                     Partes e Obrigações
                   </h4>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
-                    Mapear signatários, responsabilidades e objeto.
+                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
+                    Mapear signatários e objeto.
                   </p>
                 </div>
               </button>
@@ -166,17 +170,15 @@ export function ChatPanel() {
                     "Monte uma tabela comparativa com todas as datas, prazos de entrega e valores financeiros mencionados nas fontes."
                   )
                 }
-                className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-[#1e1f20]/60 hover:bg-[#1e1f20] hover:border-white/15 p-4 text-left transition-all cursor-pointer group"
+                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
               >
-                <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 group-hover:text-white">
-                  <Calendar className="h-4 w-4" />
-                </div>
+                <Calendar className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
                 <div>
-                  <h4 className="text-xs font-semibold text-zinc-200 group-hover:text-white">
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
                     Prazos e Valores
                   </h4>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
-                    Tabela estruturada de datas limites e quantias.
+                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
+                    Tabela estruturada de datas e quantias.
                   </p>
                 </div>
               </button>
@@ -187,17 +189,15 @@ export function ChatPanel() {
                     "Identifique cláusulas de rescisão, multas aplicáveis e hipóteses de inadimplemento presentes nas fontes."
                   )
                 }
-                className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-[#1e1f20]/60 hover:bg-[#1e1f20] hover:border-white/15 p-4 text-left transition-all cursor-pointer group"
+                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
               >
-                <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 group-hover:text-white">
-                  <BookOpen className="h-4 w-4" />
-                </div>
+                <BookOpen className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
                 <div>
-                  <h4 className="text-xs font-semibold text-zinc-200 group-hover:text-white">
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
                     Rescisão e Penalidades
                   </h4>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
-                    Condições de encerramento e sanções previstas.
+                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
+                    Sanções e regras de término.
                   </p>
                 </div>
               </button>
@@ -208,153 +208,171 @@ export function ChatPanel() {
                     "Liste os termos técnicos, definições e siglas estabelecidas ao longo do texto."
                   )
                 }
-                className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-[#1e1f20]/60 hover:bg-[#1e1f20] hover:border-white/15 p-4 text-left transition-all cursor-pointer group"
+                className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group"
               >
-                <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 group-hover:text-white">
-                  <FileSpreadsheet className="h-4 w-4" />
-                </div>
+                <FileSpreadsheet className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
                 <div>
-                  <h4 className="text-xs font-semibold text-zinc-200 group-hover:text-white">
-                    Definições e Glossário
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
+                    Glossário e Definições
                   </h4>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
-                    Termos jurídicos, técnicos e abreviações.
+                  <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
+                    Termos jurídicos e abreviações.
                   </p>
                 </div>
               </button>
             </div>
 
             {completedDocs.length === 0 && (
-              <div className="rounded-xl border border-dashed border-white/10 bg-[#1e1f20]/40 p-3.5 max-w-md text-xs text-zinc-400">
-                Nenhum documento anexado a este caderno.{" "}
+              <div className="rounded border border-dashed border-[#242628] bg-[#161719]/40 p-3 max-w-sm text-xs font-sans text-[#85888C]">
+                Nenhum PDF vinculado a este caderno.{" "}
                 <button
                   onClick={() => setAddSourceModalOpen(true)}
-                  className="text-zinc-200 underline font-medium hover:text-white cursor-pointer ml-1"
+                  className="text-[#E3E3E3] underline font-medium hover:text-white cursor-pointer ml-1"
                 >
-                  Adicionar PDF
+                  Anexar documento
                 </button>
               </div>
             )}
           </div>
         ) : (
-          /* Message Stream */
-          messages.map((msg) => {
+          /* Continuous Research Memo / Dossier Entries */
+          messages.map((msg, index) => {
             const isUser = msg.role === "user";
+
+            if (isUser) {
+              return (
+                <div
+                  key={msg.id || index}
+                  className="max-w-3xl mx-auto border-b border-[#242628] pb-3 pt-2"
+                >
+                  <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#85888C]">
+                    <Search className="h-3 w-3 text-[#D97706]" />
+                    <span>Consulta Documental</span>
+                  </div>
+                  <h3 className="text-sm font-sans font-medium text-[#E3E3E3] mt-1.5 leading-snug">
+                    {msg.content}
+                  </h3>
+                </div>
+              );
+            }
 
             return (
               <div
-                key={msg.id}
-                className={`flex gap-3 max-w-3xl mx-auto ${
-                  isUser ? "justify-end" : "justify-start"
-                }`}
+                key={msg.id || index}
+                className="max-w-3xl mx-auto space-y-4 rounded border border-[#242628] bg-[#161719] p-6 shadow-sm"
               >
-                <div
-                  className={`rounded-2xl p-5 ${
-                    isUser
-                      ? "bg-[#282a2c] text-white border border-white/10 max-w-[85%]"
-                      : "bg-[#1e1f20] text-zinc-200 border border-white/[0.06] flex-1"
-                  }`}
-                >
-                  {isUser ? (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap font-normal">
-                      {msg.content}
-                    </p>
-                  ) : (
-                    <div className="prose prose-invert prose-sm max-w-none text-zinc-200 leading-relaxed font-normal">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                  )}
+                {/* Memo Header */}
+                <div className="flex items-center justify-between border-b border-[#242628] pb-3 text-[10px] font-mono text-[#85888C]">
+                  <span className="uppercase tracking-widest text-[#85888C]">
+                    Parecer de Análise Sintetizada
+                  </span>
+                  <span className="text-[#55585D]">
+                    {new Date(msg.createdAt || Date.now()).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
 
-                  {/* Footnote-style Citations */}
-                  {!isUser && msg.citations && msg.citations.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-white/[0.06] flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] font-medium text-zinc-500 mr-1">
-                        Fontes citadas:
-                      </span>
+                {/* Editorial Body (Source Serif 4) */}
+                <div className="font-serif text-sm text-[#E3E3E3] leading-relaxed space-y-3 prose prose-invert max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+
+                {/* Academic Footnotes & Citations Table */}
+                {msg.citations && msg.citations.length > 0 && (
+                  <div className="mt-5 pt-3.5 border-t border-[#242628] space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
+                      <span>Evidências e Fontes Citadas</span>
+                      <span>[{msg.citations.length} Referências]</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       {msg.citations.map((cite, idx) => (
                         <button
                           key={cite.chunk_id || idx}
                           onClick={() => openCitationInStudio(cite)}
-                          title={`Clique para inspecionar o trecho no Estúdio (${(
-                            cite.similarity_score * 100
-                          ).toFixed(0)}% similaridade)`}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-[#131314] hover:bg-[#282a2c] border border-white/10 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white transition-all cursor-pointer group"
+                          title="Inspecionar trecho original no painel lateral de evidências"
+                          className="flex items-center justify-between rounded border border-[#242628] bg-[#0C0D0E] hover:bg-[#222427] hover:border-[#383B40] px-2.5 py-1.5 text-left transition-colors cursor-pointer group"
                         >
-                          <span className="font-mono text-zinc-400 font-semibold">
-                            [{idx + 1}]
-                          </span>
-                          <span className="truncate max-w-[150px]">
-                            {cite.document_title}
-                          </span>
-                          <span className="text-[10px] text-zinc-500 font-mono">
-                            #p.{cite.chunk_index}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[10px] font-mono font-semibold text-[#D97706]">
+                              [{idx + 1}]
+                            </span>
+                            <span className="text-xs font-sans font-medium text-[#E3E3E3] truncate max-w-[140px]">
+                              {cite.document_title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-[#85888C]">
+                            p.{cite.chunk_index}
                           </span>
                         </button>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })
         )}
 
-        {/* Loading State */}
+        {/* Loading Indicator */}
         {chatMutation.isPending && (
-          <div className="flex gap-3 max-w-3xl mx-auto justify-start">
-            <div className="rounded-2xl bg-[#1e1f20] border border-white/[0.06] p-4 text-xs text-zinc-400 flex items-center gap-2.5">
-              <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-              <span>Consultando acervo e sintetizando referências...</span>
-            </div>
+          <div className="max-w-3xl mx-auto rounded border border-[#242628] bg-[#161719] p-4 flex items-center gap-2.5 text-xs font-mono text-[#85888C]">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D97706]" />
+            <span>Recuperando fragmentos no banco vetorial e sintetizando parecer...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Floating Bottom Input Bar */}
-      <div className="absolute bottom-4 left-0 right-0 px-4 sm:px-12 flex justify-center pointer-events-none">
+      {/* Anchored Bottom Command Bar */}
+      <div className="absolute bottom-0 left-0 right-0 border-t border-[#242628] bg-[#161719]/95 backdrop-blur-sm p-3 px-6 sm:px-12 z-20">
         <form
           onSubmit={handleSubmit}
-          className="pointer-events-auto w-full max-w-3xl flex items-center gap-2 rounded-2xl border border-white/10 bg-[#1e1f20]/95 backdrop-blur-xl p-2 pl-4 shadow-2xl transition-all focus-within:border-white/20"
+          className="max-w-3xl mx-auto flex items-center gap-2 rounded border border-[#242628] bg-[#0C0D0E] px-3 py-1.5 focus-within:border-[#383B40] transition-colors"
         >
-          {/* Active Sources Pill */}
-          <div className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-[#131314] px-2.5 py-1 text-[11px] font-medium text-zinc-400 border border-white/5 shrink-0">
-            <BookmarkCheck className="h-3.5 w-3.5 text-zinc-500" />
+          {/* Active Sources Scope Pill */}
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-[#85888C] bg-[#161719] px-2 py-0.5 rounded border border-[#242628] shrink-0">
+            <BookmarkCheck className="h-3 w-3 text-[#10B981]" />
             <span>{sourcesBadgeLabel}</span>
-          </div>
+          </span>
 
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={chatMutation.isPending}
-            placeholder="Faça uma pergunta sobre os documentos..."
-            className="flex-1 bg-transparent px-2 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none disabled:opacity-50"
+            placeholder="Formule uma pergunta ou requisição sobre os documentos..."
+            className="flex-1 bg-transparent px-1 py-1 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none disabled:opacity-50 font-sans"
           />
 
           {messages.length > 0 && (
             <button
               type="button"
               onClick={clearMessages}
-              title="Limpar histórico da conversa"
-              className="p-2 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors cursor-pointer"
+              title="Limpar histórico de pesquisa"
+              className="p-1 rounded text-[#85888C] hover:text-[#E3E3E3] hover:bg-[#161719] transition-colors cursor-pointer"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
 
           <button
             type="submit"
             disabled={chatMutation.isPending || !inputText.trim()}
-            className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-200 hover:bg-white text-zinc-900 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+            className="flex items-center gap-1 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] font-medium px-2.5 py-1 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
             {chatMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin text-zinc-900" />
+              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              <Send className="h-3.5 w-3.5" />
+              <>
+                <span className="font-mono text-[10px]">Executar</span>
+                <CornerDownLeft className="h-3 w-3" />
+              </>
             )}
           </button>
         </form>
