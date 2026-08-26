@@ -23,7 +23,7 @@ import {
 
 export function ChatInterface() {
   const {
-    messages,
+    getMessages,
     addMessage,
     clearMessages,
     selectedDocumentId,
@@ -31,6 +31,7 @@ export function ChatInterface() {
     openCitation,
   } = useChatStore();
 
+  const messages = getMessages();
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

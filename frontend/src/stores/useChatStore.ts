@@ -13,8 +13,11 @@ export type StudioTab = "overview" | "citation" | "search";
 interface ChatState {
   activeNotebookId: string | null;
   notebookTitle: string;
-  activeThreadId: string | null;
-  messages: DisplayMessage[];
+  
+  // Isolamento por Caderno: Record<notebookId, mensagens[]>
+  messagesByNotebook: Record<string, DisplayMessage[]>;
+  threadsByNotebook: Record<string, string | null>;
+
   selectedDocumentId: string | null;
   selectedSourceIds: string[];
   selectedCitation: DocumentCitation | null;
@@ -23,21 +26,39 @@ interface ChatState {
   isAddSourceModalOpen: boolean;
   isChatLoading: boolean;
   isStreaming: boolean;
+  isCitationSheetOpen: boolean;
 
+  // Setters de Caderno e Thread
   setActiveNotebookId: (id: string | null) => void;
   setNotebookTitle: (title: string) => void;
   setActiveThreadId: (id: string | null) => void;
+  setActiveThreadIdForNotebook: (notebookId: string | null, threadId: string | null) => void;
+  getActiveThreadId: (notebookId?: string | null) => string | null;
+
+  // Indicadores de Estado
   setIsChatLoading: (loading: boolean) => void;
   setIsStreaming: (streaming: boolean) => void;
+
+  // Seletores e Mutações de Mensagens Isoladas por Caderno
+  getMessages: (notebookId?: string | null) => DisplayMessage[];
+  setMessagesForNotebook: (notebookId: string | null, messages: DisplayMessage[]) => void;
+  addMessageToNotebook: (notebookId: string | null, msg: Omit<DisplayMessage, "id" | "createdAt">) => string;
+  updateLastMessageForNotebook: (notebookId: string | null, content: string, citations?: DocumentCitation[], model?: string) => void;
+  clearMessagesForNotebook: (notebookId: string | null) => void;
+
+  // Métodos de conveniência que operam no activeNotebookId
   setMessages: (messages: DisplayMessage[]) => void;
   addMessage: (msg: Omit<DisplayMessage, "id" | "createdAt">) => string;
   updateLastMessageContent: (content: string, citations?: DocumentCitation[], model?: string) => void;
   clearMessages: () => void;
+
+  // Seleção de Fontes e Documentos
   setSelectedDocumentId: (id: string | null) => void;
   toggleSourceSelection: (id: string) => void;
   selectAllSources: (ids: string[]) => void;
   clearSourceSelections: () => void;
-  isCitationSheetOpen: boolean;
+
+  // Studio e Citações
   setActiveStudioTab: (tab: StudioTab) => void;
   openCitation: (citation: DocumentCitation) => void;
   closeCitation: () => void;
@@ -46,11 +67,14 @@ interface ChatState {
   setAddSourceModalOpen: (open: boolean) => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+const getNotebookKey = (id?: string | null) => id || "global";
+
+export const useChatStore = create<ChatState>((set, get) => ({
   activeNotebookId: null,
   notebookTitle: "Caderno Sem Título",
-  activeThreadId: null,
-  messages: [],
+  messagesByNotebook: {},
+  threadsByNotebook: {},
+
   selectedDocumentId: null,
   selectedSourceIds: [],
   selectedCitation: null,
@@ -59,34 +83,85 @@ export const useChatStore = create<ChatState>((set) => ({
   isAddSourceModalOpen: false,
   isChatLoading: false,
   isStreaming: false,
+  isCitationSheetOpen: false,
 
   setActiveNotebookId: (id) => set({ activeNotebookId: id }),
   setNotebookTitle: (title) => set({ notebookTitle: title }),
-  setActiveThreadId: (id) => set({ activeThreadId: id }),
+
+  setActiveThreadId: (id) => {
+    const key = getNotebookKey(get().activeNotebookId);
+    set((state) => ({
+      threadsByNotebook: {
+        ...state.threadsByNotebook,
+        [key]: id,
+      },
+    }));
+  },
+
+  setActiveThreadIdForNotebook: (notebookId, threadId) => {
+    const key = getNotebookKey(notebookId);
+    set((state) => ({
+      threadsByNotebook: {
+        ...state.threadsByNotebook,
+        [key]: threadId,
+      },
+    }));
+  },
+
+  getActiveThreadId: (notebookId) => {
+    const key = getNotebookKey(notebookId !== undefined ? notebookId : get().activeNotebookId);
+    return get().threadsByNotebook[key] || null;
+  },
+
   setIsChatLoading: (loading) => set({ isChatLoading: loading }),
   setIsStreaming: (streaming) => set({ isStreaming: streaming }),
 
-  setMessages: (messages) => set({ messages }),
+  // Seletor de Mensagens
+  getMessages: (notebookId) => {
+    const key = getNotebookKey(notebookId !== undefined ? notebookId : get().activeNotebookId);
+    return get().messagesByNotebook[key] || [];
+  },
 
-  addMessage: (msg) => {
-    const newId = "msg-" + Math.random().toString(36).substring(2, 9);
+  // Mutações Isoladas
+  setMessagesForNotebook: (notebookId, messages) => {
+    const key = getNotebookKey(notebookId);
     set((state) => ({
-      messages: [
-        ...state.messages,
-        {
-          ...msg,
-          id: newId,
-          createdAt: new Date(),
-        },
-      ],
+      messagesByNotebook: {
+        ...state.messagesByNotebook,
+        [key]: messages,
+      },
     }));
+  },
+
+  addMessageToNotebook: (notebookId, msg) => {
+    const key = getNotebookKey(notebookId);
+    const newId = "msg-" + Math.random().toString(36).substring(2, 9);
+    const newMessage: DisplayMessage = {
+      ...msg,
+      id: newId,
+      createdAt: new Date(),
+    };
+
+    set((state) => {
+      const currentList = state.messagesByNotebook[key] || [];
+      return {
+        messagesByNotebook: {
+          ...state.messagesByNotebook,
+          [key]: [...currentList, newMessage],
+        },
+      };
+    });
+
     return newId;
   },
 
-  updateLastMessageContent: (content, citations, model) =>
+  updateLastMessageForNotebook: (notebookId, content, citations, model) => {
+    const key = getNotebookKey(notebookId);
     set((state) => {
-      if (state.messages.length === 0) return state;
-      const updated = [...state.messages];
+      const currentList = state.messagesByNotebook[key] || [];
+      if (currentList.length === 0) return state;
+
+      const updated = [...currentList];
       const lastIndex = updated.length - 1;
       updated[lastIndex] = {
         ...updated[lastIndex],
@@ -94,16 +169,50 @@ export const useChatStore = create<ChatState>((set) => ({
         citations: citations !== undefined ? citations : updated[lastIndex].citations,
         model: model !== undefined ? model : updated[lastIndex].model,
       };
-      return { messages: updated };
-    }),
 
-  clearMessages: () =>
-    set({
-      messages: [],
+      return {
+        messagesByNotebook: {
+          ...state.messagesByNotebook,
+          [key]: updated,
+        },
+      };
+    });
+  },
+
+  clearMessagesForNotebook: (notebookId) => {
+    const key = getNotebookKey(notebookId);
+    set((state) => ({
+      messagesByNotebook: {
+        ...state.messagesByNotebook,
+        [key]: [],
+      },
       selectedCitation: null,
       selectedSearchChunk: null,
-    }),
+    }));
+  },
 
+  // Atalhos para o Caderno Ativo
+  setMessages: (messages) => {
+    const key = getNotebookKey(get().activeNotebookId);
+    get().setMessagesForNotebook(key, messages);
+  },
+
+  addMessage: (msg) => {
+    const key = getNotebookKey(get().activeNotebookId);
+    return get().addMessageToNotebook(key, msg);
+  },
+
+  updateLastMessageContent: (content, citations, model) => {
+    const key = getNotebookKey(get().activeNotebookId);
+    get().updateLastMessageForNotebook(key, content, citations, model);
+  },
+
+  clearMessages: () => {
+    const key = getNotebookKey(get().activeNotebookId);
+    get().clearMessagesForNotebook(key);
+  },
+
+  // Seleções
   setSelectedDocumentId: (id) => set({ selectedDocumentId: id }),
 
   toggleSourceSelection: (id) =>
@@ -117,8 +226,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   clearSourceSelections: () => set({ selectedSourceIds: [] }),
 
-  isCitationSheetOpen: false,
-
+  // Visualizador e Studio
   setActiveStudioTab: (tab) => set({ activeStudioTab: tab }),
 
   openCitation: (citation) =>
