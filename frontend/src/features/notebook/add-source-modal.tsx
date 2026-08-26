@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getErrorMessage } from "@/lib/api-client";
 import { DocumentItem } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import { X, Upload, Loader2, FileCheck } from "lucide-react";
@@ -61,12 +61,18 @@ export function AddSourceModal() {
     activeNotebookId,
   ]);
 
+  const isUUID =
+    !!activeNotebookId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      activeNotebookId
+    );
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const url = activeNotebookId
+      const url = isUUID
         ? `/documents/upload?notebook_id=${activeNotebookId}`
         : "/documents/upload";
 
@@ -82,9 +88,11 @@ export function AddSourceModal() {
       });
     },
     onError: (err: any) => {
-      const msg =
-        err.response?.data?.detail || "Erro ao fazer upload do documento.";
-      toast.error(msg);
+      const msg = getErrorMessage(
+        err,
+        "Erro ao fazer upload do documento."
+      );
+      toast.error("Falha no envio", { description: msg });
     },
   });
 

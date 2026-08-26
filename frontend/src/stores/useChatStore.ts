@@ -20,10 +20,11 @@ interface ChatState {
   selectedSearchChunk: SearchResultChunk | null;
   activeStudioTab: StudioTab;
   isAddSourceModalOpen: boolean;
+  isChatLoading: boolean;
 
   setActiveNotebookId: (id: string | null) => void;
-
   setNotebookTitle: (title: string) => void;
+  setIsChatLoading: (loading: boolean) => void;
   addMessage: (msg: Omit<DisplayMessage, "id" | "createdAt">) => void;
   clearMessages: () => void;
   setSelectedDocumentId: (id: string | null) => void;
@@ -49,9 +50,11 @@ export const useChatStore = create<ChatState>((set) => ({
   selectedSearchChunk: null,
   activeStudioTab: "overview",
   isAddSourceModalOpen: false,
+  isChatLoading: false,
 
   setActiveNotebookId: (id) => set({ activeNotebookId: id }),
   setNotebookTitle: (title) => set({ notebookTitle: title }),
+  setIsChatLoading: (loading) => set({ isChatLoading: loading }),
 
   addMessage: (msg) =>
     set((state) => ({
@@ -59,48 +62,47 @@ export const useChatStore = create<ChatState>((set) => ({
         ...state.messages,
         {
           ...msg,
-          id: Math.random().toString(36).substring(2, 9),
+          id: "msg-" + Math.random().toString(36).substring(2, 9),
           createdAt: new Date(),
         },
       ],
     })),
 
-  clearMessages: () => set({ messages: [] }),
-
-  setSelectedDocumentId: (id) =>
+  clearMessages: () =>
     set({
-      selectedDocumentId: id,
-      selectedSourceIds: id ? [id] : [],
+      messages: [],
+      selectedCitation: null,
+      selectedSearchChunk: null,
     }),
+
+  setSelectedDocumentId: (id) => set({ selectedDocumentId: id }),
 
   toggleSourceSelection: (id) =>
-    set((state) => {
-      const exists = state.selectedSourceIds.includes(id);
-      const next = exists
-        ? state.selectedSourceIds.filter((item) => item !== id)
-        : [...state.selectedSourceIds, id];
-      return {
-        selectedSourceIds: next,
-        selectedDocumentId: next.length === 1 ? next[0] : null,
-      };
-    }),
+    set((state) => ({
+      selectedSourceIds: state.selectedSourceIds.includes(id)
+        ? state.selectedSourceIds.filter((sid) => sid !== id)
+        : [...state.selectedSourceIds, id],
+    })),
 
-  selectAllSources: (ids) =>
-    set({ selectedSourceIds: ids, selectedDocumentId: null }),
+  selectAllSources: (ids) => set({ selectedSourceIds: ids }),
 
-  clearSourceSelections: () =>
-    set({ selectedSourceIds: [], selectedDocumentId: null }),
+  clearSourceSelections: () => set({ selectedSourceIds: [] }),
 
   isCitationSheetOpen: false,
+
   setActiveStudioTab: (tab) => set({ activeStudioTab: tab }),
+
   openCitation: (citation) =>
     set({
       selectedCitation: citation,
-      activeStudioTab: "citation",
       isCitationSheetOpen: true,
     }),
+
   closeCitation: () =>
-    set({ selectedCitation: null, isCitationSheetOpen: false }),
+    set({
+      isCitationSheetOpen: false,
+      selectedCitation: null,
+    }),
 
   openCitationInStudio: (citation) =>
     set({
@@ -108,11 +110,21 @@ export const useChatStore = create<ChatState>((set) => ({
       activeStudioTab: "citation",
     }),
 
-  openSearchResultInStudio: (chunk) =>
+  openSearchResultInStudio: (chunk) => {
+    const asCitation: DocumentCitation = {
+      chunk_id: chunk.chunk_id,
+      document_id: chunk.document_id,
+      document_title: chunk.document_title,
+      chunk_index: chunk.chunk_index,
+      text_snippet: chunk.text_content,
+      similarity_score: chunk.similarity_score,
+    };
     set({
+      selectedCitation: asCitation,
       selectedSearchChunk: chunk,
-      activeStudioTab: "search",
-    }),
+      activeStudioTab: "citation",
+    });
+  },
 
   setAddSourceModalOpen: (open) => set({ isAddSourceModalOpen: open }),
 }));
