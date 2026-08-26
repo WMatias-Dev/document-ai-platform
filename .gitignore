@@ -37,5 +37,16 @@ uploads/
 docker-compose.override.yml
 docker-compose.local.yml
 
+# Node.js / Next.js Frontend
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+
+# Docs / Scratch
 /graphify-out
 /docs
+
