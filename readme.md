@@ -105,28 +105,46 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Usuário (Next.js)
-    participant API as FastAPI (/chat/stream)
-    participant Agent as DocumentAgent
-    participant Repo as DocumentRepository (pgvector)
-    participant ChatRepo as ChatRepository (PostgreSQL)
-    participant Gemini as AIService (Gemini Pool)
-
-    User->>API: POST /chat/stream { message, notebook_id, history }
-    API->>Agent: ask_stream(request, current_user)
-    Agent->>Repo: similarity_search(query_vector, owner_id, notebook_id)
-    Repo-->>Agent: Retorna Top-K Chunks mais similares (HNSW)
-    Agent-->>User: event: citations (JSON com metadados das fontes)
+    actor User as Frontend (Next.js)
     
-    Agent->>Gemini: generate_response_stream(prompt, system_instruction)
-    loop Emissão Progressiva de Tokens
-        Gemini-->>Agent: yield token_chunk
-        Agent-->>User: event: delta { text: "fragmento..." }
+    box rgb(22, 23, 25) Backend (FastAPI)
+        participant API as Endpoint (/chat/stream)
+        participant Agent as DocumentAgent
     end
-    
-    Agent->>ChatRepo: Persiste pergunta, resposta e citações no PostgreSQL
-    ChatRepo-->>Agent: Confirma persistência (thread_id, message_id)
-    Agent-->>User: event: done { thread_id, message_id, model }
+
+    box rgb(28, 29, 32) AI & Embeddings
+        participant Gemini as AIService (Gemini Pool)
+    end
+
+    box rgb(22, 23, 25) Banco de Dados
+        participant VectorDB as Vector Store (pgvector)
+        participant RelDB as ChatRepository (PostgreSQL)
+    end
+
+    %% 1. Início da requisição
+    User->>API: POST /chat/stream (message, notebook_id)
+    API->>Agent: ask_stream()
+
+    %% 2. Embeddings & RAG
+    Agent->>Gemini: generate_query_embedding(message)
+    Gemini-->>Agent: query_vector
+    Agent->>VectorDB: similarity_search(query_vector, HNSW)
+    VectorDB-->>Agent: top_k_chunks
+
+    %% 3. Envio antecipado de fontes (SSE)
+    Agent-->>User: SSE event: citations (fontes / metadados)
+
+    %% 4. Streaming da resposta
+    Agent->>Gemini: generate_response_stream(prompt, context)
+    loop Stream de Tokens
+        Gemini-->>Agent: yield token_chunk
+        Agent-->>User: SSE event: delta (chunk_text)
+    end
+
+    %% 5. Persistência e Encerramento
+    Agent->>RelDB: save_message_and_sources()
+    RelDB-->>Agent: { thread_id, message_id }
+    Agent-->>User: SSE event: done { thread_id, message_id }
 ```
 
 ---
