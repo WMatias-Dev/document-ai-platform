@@ -45,7 +45,9 @@ class DocumentAgent:
 
         search_request = DocumentSearchRequest(
             query=request.message,
+            notebook_id=request.notebook_id,
             document_id=request.document_id,
+            source_ids=request.source_ids,
             limit=request.max_chunks,
         )
 

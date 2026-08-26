@@ -13,8 +13,8 @@ class User(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
-        index=True
-)
+        index=True,
+    )
 
     name: Mapped[str] = mapped_column(String(100))
 
@@ -26,4 +26,9 @@ class User(Base):
 
     password_hash: Mapped[str] = mapped_column(String(255))
 
-    documents = relationship("Document", back_populates="owner", cascade="all, delete-orphan")
+    documents = relationship(
+        "Document", back_populates="owner", cascade="all, delete-orphan"
+    )
+    notebooks = relationship(
+        "Notebook", back_populates="owner", cascade="all, delete-orphan"
+    )

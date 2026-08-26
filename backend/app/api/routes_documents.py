@@ -35,6 +35,7 @@ ALLOWED_MIME_TYPES = ["application/pdf"]
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    notebook_id: uuid.UUID | None = None,
     current_user: User = Depends(get_current_user),
     document_service: DocumentService = Depends(get_document_service),
 ):
@@ -70,6 +71,7 @@ async def upload_document(
         file=file,
         owner_id=current_user.id,
         background_tasks=background_tasks,
+        notebook_id=notebook_id,
     )
 
 

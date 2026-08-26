@@ -8,11 +8,13 @@ from app.database.connection import SessionLocal
 from app.database.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.repositories.document_repository import DocumentRepository
+from app.repositories.notebook_repository import NotebookRepository
 from app.services.storage_service import StorageService
 from app.services.parsing_service import ParsingService
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.document_service import DocumentService
+from app.services.notebook_service import NotebookService
 
 
 def get_db():
@@ -73,3 +75,7 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
         embedder=embedder,
         session_factory=SessionLocal,
     )
+
+
+def get_notebook_service(db: Session = Depends(get_db)) -> NotebookService:
+    return NotebookService(db=db)

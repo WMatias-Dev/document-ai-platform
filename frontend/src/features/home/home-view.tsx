@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useNotebookStore } from "@/stores/useNotebookStore";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import { NotebookItem } from "@/types/api";
 import { HomeHeader } from "./home-header";
 import { FeaturedNotebooks } from "./featured-notebooks";
 import { NotebookCard, CreateNotebookCard } from "./notebook-card";
@@ -11,27 +13,29 @@ import {
   Search,
   LayoutGrid,
   List,
-  SlidersHorizontal,
-  FolderPlus,
-  Layers,
+  Loader2,
+  FolderKanban,
+  FileSpreadsheet,
 } from "lucide-react";
 
-type FilterTab = "all" | "my" | "featured" | "collections";
+type FilterTab = "all" | "models";
 type SortOption = "recent" | "alpha";
 
 export function HomeView() {
-  const { notebooks, initStore } = useNotebookStore();
-
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortOption, setSortOption] = useState<SortOption>("recent");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  useEffect(() => {
-    initStore();
-  }, [initStore]);
+  // Consulta ao backend
+  const { data: notebooks = [], isLoading } = useQuery<NotebookItem[]>({
+    queryKey: ["notebooks"],
+    queryFn: async () => {
+      const res = await apiClient.get("/notebooks/");
+      return res.data;
+    },
+  });
 
   // Filtragem e busca
   const filteredNotebooks = notebooks
@@ -47,184 +51,154 @@ export function HomeView() {
       if (sortOption === "alpha") {
         return a.title.localeCompare(b.title);
       }
-      return 0; // Ordem cronológica padrão
+      return 0;
     });
 
   return (
-    <div className="min-h-screen bg-[#131314] text-zinc-100 flex flex-col selection:bg-[#a8c7fa]/30">
-      {/* 1. Header Superior */}
+    <div className="min-h-screen bg-[#0C0D0E] text-[#E3E3E3] flex flex-col selection:bg-[#D97706]/20 selection:text-[#FDE68A]">
+      {/* 1. Header de Ferramenta */}
       <HomeHeader />
 
       {/* 2. Conteúdo Principal */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-6 sm:px-10 py-8 space-y-10">
-        {/* Barra de Filtros e Controles (Sub-header) */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-white/5">
-          {/* Navigation Pills */}
-          <div className="flex items-center gap-1.5 p-1 rounded-full bg-[#1e1f20] border border-white/5 text-xs">
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 sm:px-10 py-8 space-y-8">
+        {/* Barra de Controles e Filtros */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-[#242628]">
+          {/* Navegação de Abas Austeras */}
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setActiveTab("all")}
-              className={`rounded-full px-4 py-1.5 font-medium transition-all cursor-pointer ${
+              className={`rounded px-3 py-1 text-xs font-mono transition-colors cursor-pointer ${
                 activeTab === "all"
-                  ? "bg-white/10 text-white shadow-sm font-semibold"
-                  : "text-zinc-400 hover:text-white"
+                  ? "bg-[#161719] text-[#E3E3E3] border border-[#242628]"
+                  : "text-[#85888C] hover:text-[#E3E3E3]"
               }`}
             >
-              Todos
+              Acervo de Cadernos ({notebooks.length})
             </button>
 
             <button
-              onClick={() => setActiveTab("my")}
-              className={`rounded-full px-4 py-1.5 font-medium transition-all cursor-pointer ${
-                activeTab === "my"
-                  ? "bg-white/10 text-white shadow-sm font-semibold"
-                  : "text-zinc-400 hover:text-white"
+              onClick={() => setActiveTab("models")}
+              className={`rounded px-3 py-1 text-xs font-mono transition-colors cursor-pointer ${
+                activeTab === "models"
+                  ? "bg-[#161719] text-[#E3E3E3] border border-[#242628]"
+                  : "text-[#85888C] hover:text-[#E3E3E3]"
               }`}
             >
-              Meus notebooks
-            </button>
-
-            <button
-              onClick={() => setActiveTab("featured")}
-              className={`rounded-full px-4 py-1.5 font-medium transition-all cursor-pointer ${
-                activeTab === "featured"
-                  ? "bg-white/10 text-white shadow-sm font-semibold"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              Destaques / Modelos
-            </button>
-
-            <button
-              onClick={() => setActiveTab("collections")}
-              className={`rounded-full px-4 py-1.5 font-medium transition-all cursor-pointer ${
-                activeTab === "collections"
-                  ? "bg-white/10 text-white shadow-sm font-semibold"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              Coleções
+              Modelos de Análise
             </button>
           </div>
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-3">
-            {/* Expandable Search Input */}
-            <div className="relative flex items-center">
-              {isSearchOpen ? (
-                <div className="flex items-center gap-1 rounded-full bg-[#1e1f20] border border-white/10 px-3 py-1.5 animate-in fade-in duration-200">
-                  <Search className="h-3.5 w-3.5 text-zinc-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Pesquisar notebooks..."
-                    autoFocus
-                    onBlur={() => !searchQuery && setIsSearchOpen(false)}
-                    className="bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none w-36 sm:w-48"
-                  />
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsSearchOpen(true)}
-                  className="rounded-full p-2 text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                  title="Pesquisar notebooks"
-                >
-                  <Search className="h-4 w-4" />
-                </button>
-              )}
+          {/* Ações Técnicas */}
+          <div className="flex items-center gap-2.5">
+            {/* Campo de Busca Rápida */}
+            <div className="flex items-center gap-1.5 rounded border border-[#242628] bg-[#161719] px-2.5 py-1">
+              <Search className="h-3.5 w-3.5 text-[#85888C]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Filtrar cadernos..."
+                className="bg-transparent text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none w-32 sm:w-48 font-sans"
+              />
             </div>
 
-            {/* Sort Selector */}
+            {/* Ordenação */}
             <select
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="rounded-full bg-[#1e1f20] border border-white/5 px-3 py-1.5 text-xs text-zinc-300 focus:outline-none cursor-pointer"
+              className="rounded border border-[#242628] bg-[#161719] px-2 py-1 text-xs font-mono text-[#85888C] focus:outline-none cursor-pointer"
             >
-              <option value="recent" className="bg-[#1e1f20] text-white">
-                Mais recentes ▾
+              <option value="recent" className="bg-[#161719] text-[#E3E3E3]">
+                Mais Recentes ▾
               </option>
-              <option value="alpha" className="bg-[#1e1f20] text-white">
+              <option value="alpha" className="bg-[#161719] text-[#E3E3E3]">
                 Nome (A-Z) ▾
               </option>
             </select>
 
-            {/* View Mode Toggle */}
-            <div className="hidden sm:flex items-center rounded-full bg-[#1e1f20] border border-white/5 p-0.5 text-zinc-400">
+            {/* Alternador de Grade / Lista */}
+            <div className="hidden sm:flex items-center rounded border border-[#242628] bg-[#161719] p-0.5 text-[#85888C]">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-1.5 rounded-full transition-colors ${
-                  viewMode === "grid" ? "bg-white/10 text-white" : "hover:text-white"
+                className={`p-1 rounded transition-colors ${
+                  viewMode === "grid" ? "bg-[#242628] text-[#E3E3E3]" : "hover:text-[#E3E3E3]"
                 }`}
                 title="Visualização em Grade"
               >
-                <LayoutGrid className="h-3.5 w-3.5" />
+                <LayoutGrid className="h-3 w-3" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-1.5 rounded-full transition-colors ${
-                  viewMode === "list" ? "bg-white/10 text-white" : "hover:text-white"
+                className={`p-1 rounded transition-colors ${
+                  viewMode === "list" ? "bg-[#242628] text-[#E3E3E3]" : "hover:text-[#E3E3E3]"
                 }`}
                 title="Visualização em Lista"
               >
-                <List className="h-3.5 w-3.5" />
+                <List className="h-3 w-3" />
               </button>
             </div>
 
-            {/* Primary Action Button: + Criar novo */}
+            {/* Ação Primária: + Novo Caderno */}
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-[#a8c7fa] hover:bg-[#c2e7ff] text-[#041e49] font-semibold px-5 py-2 text-xs transition-all shadow-lg shadow-blue-500/10 hover:scale-105 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] font-medium px-3.5 py-1 text-xs transition-all cursor-pointer"
             >
-              <Plus className="h-4 w-4" />
-              <span>Criar novo</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>Novo Caderno</span>
             </button>
           </div>
         </div>
 
-        {/* 3. Seção 1: Notebooks em Destaque */}
-        {(activeTab === "all" || activeTab === "featured") && !searchQuery && (
+        {/* 3. Seção de Modelos de Investigação */}
+        {(activeTab === "all" || activeTab === "models") && !searchQuery && (
           <FeaturedNotebooks />
         )}
 
-        {/* 4. Seção 2: Meus Projetos / Recentes */}
-        {(activeTab === "all" || activeTab === "my") && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
+        {/* 4. Seção Principal de Cadernos do Acervo */}
+        {(activeTab === "all") && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between border-b border-[#242628] pb-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-white tracking-tight">
-                  Notebooks recentes
+                <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-[#85888C]">
+                  Cadernos em Custódia
                 </h2>
-                <span className="text-xs text-zinc-400 font-mono">
-                  ({filteredNotebooks.length})
+                <span className="text-[10px] font-mono text-[#55585D]">
+                  [{filteredNotebooks.length} Registros]
                 </span>
               </div>
             </div>
 
-            {/* Grid of Projects */}
-            <div
-              className={`grid gap-4 ${
-                viewMode === "grid"
-                  ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
-                  : "grid-cols-1"
-              }`}
-            >
-              {/* Card Fixo de Criar Novo */}
-              {!searchQuery && (
-                <CreateNotebookCard
-                  onClick={() => setIsCreateModalOpen(true)}
-                />
-              )}
+            {isLoading ? (
+              <div className="flex items-center justify-center p-12 text-[#85888C] gap-2 text-xs font-mono">
+                <Loader2 className="h-4 w-4 animate-spin text-[#85888C]" />
+                <span>Consultando acervo...</span>
+              </div>
+            ) : (
+              <div
+                className={`grid gap-3 ${
+                  viewMode === "grid"
+                    ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                    : "grid-cols-1"
+                }`}
+              >
+                {/* Card Fixo de Novo Caderno */}
+                {!searchQuery && (
+                  <CreateNotebookCard
+                    onClick={() => setIsCreateModalOpen(true)}
+                  />
+                )}
 
-              {/* Cards dos Cadernos do Usuário */}
-              {filteredNotebooks.map((nb) => (
-                <NotebookCard key={nb.id} notebook={nb} />
-              ))}
-            </div>
+                {/* Cards de Cadernos Reais */}
+                {filteredNotebooks.map((nb, index) => (
+                  <NotebookCard key={nb.id} notebook={nb} index={index} />
+                ))}
+              </div>
+            )}
           </section>
         )}
       </main>
 
-      {/* Modal de Criação de Notebook */}
+      {/* Modal de Criação */}
       <CreateNotebookModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}

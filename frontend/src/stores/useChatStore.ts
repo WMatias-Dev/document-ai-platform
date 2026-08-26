@@ -11,6 +11,7 @@ export interface DisplayMessage extends ChatMessage {
 export type StudioTab = "overview" | "citation" | "search";
 
 interface ChatState {
+  activeNotebookId: string | null;
   notebookTitle: string;
   messages: DisplayMessage[];
   selectedDocumentId: string | null;
@@ -19,6 +20,8 @@ interface ChatState {
   selectedSearchChunk: SearchResultChunk | null;
   activeStudioTab: StudioTab;
   isAddSourceModalOpen: boolean;
+
+  setActiveNotebookId: (id: string | null) => void;
 
   setNotebookTitle: (title: string) => void;
   addMessage: (msg: Omit<DisplayMessage, "id" | "createdAt">) => void;
@@ -37,6 +40,7 @@ interface ChatState {
 }
 
 export const useChatStore = create<ChatState>((set) => ({
+  activeNotebookId: null,
   notebookTitle: "Caderno Sem Título",
   messages: [],
   selectedDocumentId: null,
@@ -46,6 +50,7 @@ export const useChatStore = create<ChatState>((set) => ({
   activeStudioTab: "overview",
   isAddSourceModalOpen: false,
 
+  setActiveNotebookId: (id) => set({ activeNotebookId: id }),
   setNotebookTitle: (title) => set({ notebookTitle: title }),
 
   addMessage: (msg) =>

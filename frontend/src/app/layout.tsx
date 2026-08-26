@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
@@ -13,10 +13,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
-  title: "Document AI Platform | Inteligência Documental com RAG",
+  title: "Document AI — Research Workspace",
   description:
-    "Gestão inteligente de documentos com busca vetorial semântica e chat conversacional potenciado por Gemini 3.7 Flash.",
+    "Bancada profissional de pesquisa, análise documental e rastreabilidade de evidências com recuperação semântica.",
 };
 
 export default function RootLayout({
@@ -27,9 +33,9 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-[#090d16] text-slate-100 selection:bg-blue-500/30 selection:text-blue-200">
+      <body className="min-h-full flex flex-col bg-[#0C0D0E] text-[#E3E3E3] font-sans selection:bg-[#D97706]/20 selection:text-[#FDE68A]">
         <Providers>{children}</Providers>
       </body>
     </html>
