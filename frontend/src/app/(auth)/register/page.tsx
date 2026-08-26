@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getErrorMessage } from "@/lib/api-client";
 import { BookOpen, Lock, Mail, User, Loader2, ArrowRight } from "lucide-react";
 
 const registerSchema = z.object({
@@ -45,8 +45,10 @@ export default function RegisterPage() {
 
       router.push("/login");
     } catch (err: any) {
-      const msg =
-        err.response?.data?.detail || "Erro ao registrar credencial. Verifique os dados.";
+      const msg = getErrorMessage(
+        err,
+        "Erro ao registrar credencial. Verifique os dados."
+      );
       toast.error("Falha no cadastro", { description: msg });
     } finally {
       setIsLoading(false);

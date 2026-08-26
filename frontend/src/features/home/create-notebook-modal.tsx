@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getErrorMessage } from "@/lib/api-client";
 import { NotebookItem } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import { X, Plus, Loader2, FolderPlus, FileCheck } from "lucide-react";
@@ -42,7 +42,7 @@ export function CreateNotebookModal({
       router.push(`/notebook/${newNotebook.id}`);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Erro ao criar caderno.";
+      const msg = getErrorMessage(err, "Erro ao criar caderno.");
       toast.error(msg);
     },
   });

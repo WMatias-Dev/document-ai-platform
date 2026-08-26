@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getErrorMessage } from "@/lib/api-client";
 import { ChatResponse, DocumentItem, DocumentCitation } from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import {
@@ -30,6 +30,8 @@ export function ChatPanel() {
     selectedSourceIds,
     openCitationInStudio,
     setAddSourceModalOpen,
+    isChatLoading,
+    setIsChatLoading,
   } = useChatStore();
 
   const [inputText, setInputText] = useState("");
@@ -54,8 +56,15 @@ export function ChatPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const isUUID =
+    !!activeNotebookId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      activeNotebookId
+    );
+
   const chatMutation = useMutation({
     mutationFn: async (messageText: string) => {
+      setIsChatLoading(true);
       const historyPayload = messages.slice(-6).map((m) => ({
         role: m.role,
         content: m.content,
@@ -63,7 +72,7 @@ export function ChatPanel() {
 
       const res = await apiClient.post<ChatResponse>("/chat/", {
         message: messageText,
-        notebook_id: activeNotebookId,
+        notebook_id: isUUID ? activeNotebookId : null,
         source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
         history: historyPayload,
         max_chunks: 5,
@@ -72,6 +81,7 @@ export function ChatPanel() {
       return res.data;
     },
     onSuccess: (data) => {
+      setIsChatLoading(false);
       addMessage({
         role: "assistant",
         content: data.answer,
@@ -80,8 +90,11 @@ export function ChatPanel() {
       });
     },
     onError: (err: any) => {
-      const msg =
-        err.response?.data?.detail || "Erro ao consultar o acervo documental.";
+      setIsChatLoading(false);
+      const msg = getErrorMessage(
+        err,
+        "Erro ao consultar o acervo documental."
+      );
       toast.error("Falha na consulta", { description: msg });
       addMessage({
         role: "assistant",
@@ -319,7 +332,7 @@ export function ChatPanel() {
         )}
 
         {/* Loading Indicator */}
-        {chatMutation.isPending && (
+        {(chatMutation.isPending || isChatLoading) && (
           <div className="max-w-3xl mx-auto rounded border border-[#242628] bg-[#161719] p-4 flex items-center gap-2.5 text-xs font-mono text-[#85888C]">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D97706]" />
             <span>Recuperando fragmentos no banco vetorial e sintetizando parecer...</span>

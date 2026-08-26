@@ -10,6 +10,41 @@ export const apiClient = axios.create({
   },
 });
 
+// Helper seguro para formatar erros da API (incluindo objetos de validação Pydantic) para string pura
+export function getErrorMessage(
+  err: any,
+  fallback: string = "Ocorreu um erro."
+): string {
+  if (!err) return fallback;
+
+  const detail = err.response?.data?.detail;
+
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    // Array de erros do Pydantic v2: [{ loc: [...], msg: '...', type: '...' }]
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item?.msg) return item.msg;
+        return JSON.stringify(item);
+      })
+      .join("; ");
+  }
+
+  if (detail && typeof detail === "object") {
+    return detail.message || detail.msg || detail.detail || JSON.stringify(detail);
+  }
+
+  if (err.message && typeof err.message === "string") {
+    return err.message;
+  }
+
+  return fallback;
+}
+
 // Interceptor para injeção automática do Bearer JWT
 apiClient.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {

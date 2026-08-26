@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
-import { DocumentSearchResponse, SearchResultChunk } from "@/types/api";
+import { apiClient, getErrorMessage } from "@/lib/api-client";
+import {
+  ChatResponse,
+  DocumentSearchResponse,
+  SearchResultChunk,
+} from "@/types/api";
 import { useChatStore } from "@/stores/useChatStore";
 import {
   Search,
@@ -13,8 +17,9 @@ import {
   Check,
   Scale,
   FileSpreadsheet,
-  FileSearch,
   Quote,
+  Loader2,
+  Play,
 } from "lucide-react";
 
 export function StudioPanel() {
@@ -27,20 +32,82 @@ export function StudioPanel() {
     openSearchResultInStudio,
     addMessage,
     selectedSourceIds,
+    messages,
+    isChatLoading,
+    setIsChatLoading,
   } = useChatStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultChunk[]>([]);
   const [isCopied, setIsCopied] = useState(false);
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
 
+  // Mutação RAG para execução de tarefas analíticas
+  const taskMutation = useMutation({
+    mutationFn: async (promptText: string) => {
+      const historyPayload = messages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const isUUID =
+        !!activeNotebookId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          activeNotebookId
+        );
+
+      const res = await apiClient.post<ChatResponse>("/chat/", {
+        message: promptText,
+        notebook_id: isUUID ? activeNotebookId : null,
+        source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
+        history: historyPayload,
+        max_chunks: 5,
+      });
+
+      return res.data;
+    },
+    onSuccess: (data) => {
+      addMessage({
+        role: "assistant",
+        content: data.answer,
+        citations: data.citations,
+        model: data.model,
+      });
+      setIsChatLoading(false);
+      setRunningTaskId(null);
+      toast.success("Tarefa analítica concluída.");
+    },
+    onError: (err: any) => {
+      setIsChatLoading(false);
+      setRunningTaskId(null);
+      const msg = getErrorMessage(
+        err,
+        "Erro ao executar tarefa analítica no acervo."
+      );
+      toast.error("Falha na execução da tarefa", { description: msg });
+      addMessage({
+        role: "assistant",
+        content:
+          "Ocorreu uma falha ao recuperar e processar as fontes para esta tarefa. Por favor, tente novamente.",
+      });
+    },
+  });
+
+  // Mutação de busca semântica direta
   const searchMutation = useMutation({
     mutationFn: async (query: string) => {
+      const isUUID =
+        !!activeNotebookId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          activeNotebookId
+        );
+
       const res = await apiClient.post<DocumentSearchResponse>(
         "/documents/search",
         {
           query,
           limit: 4,
-          notebook_id: activeNotebookId,
+          notebook_id: isUUID ? activeNotebookId : null,
           source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
         }
       );
@@ -52,6 +119,10 @@ export function StudioPanel() {
         toast.info("Nenhum trecho correspondente no banco vetorial.");
       }
     },
+    onError: (err: any) => {
+      const msg = getErrorMessage(err, "Erro na busca vetorial.");
+      toast.error("Falha na busca", { description: msg });
+    },
   });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -60,11 +131,18 @@ export function StudioPanel() {
     searchMutation.mutate(searchQuery.trim());
   };
 
-  const handleQuickTask = (prompt: string) => {
+  const handleQuickTask = (taskId: string, prompt: string) => {
+    if (taskMutation.isPending || isChatLoading) return;
+
+    setRunningTaskId(taskId);
+    setIsChatLoading(true);
+
     addMessage({
       role: "user",
       content: prompt,
     });
+
+    taskMutation.mutate(prompt);
   };
 
   const handleCopySnippet = (text: string) => {
@@ -73,6 +151,8 @@ export function StudioPanel() {
     toast.success("Trecho copiado para a área de transferência.");
     setTimeout(() => setIsCopied(false), 2000);
   };
+
+  const isAnyTaskRunning = taskMutation.isPending || isChatLoading;
 
   return (
     <aside className="w-80 h-full border-l border-[#242628] bg-[#0C0D0E] flex flex-col shrink-0 select-none">
@@ -196,25 +276,47 @@ export function StudioPanel() {
         {/* ABA 2: TAREFAS DE ANÁLISE PRONTAS */}
         {activeStudioTab === "overview" && (
           <div className="space-y-2.5 animate-in fade-in duration-100">
-            <div className="border-b border-[#242628] pb-1.5">
+            <div className="border-b border-[#242628] pb-1.5 flex items-center justify-between">
               <span className="text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
                 Tarefas Rápidas de Análise
               </span>
+              {isAnyTaskRunning && (
+                <span className="text-[10px] font-mono text-[#D97706] flex items-center gap-1">
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  Processando...
+                </span>
+              )}
             </div>
 
             <div className="space-y-1.5">
+              {/* Tarefa 1: Resumo Executivo */}
               <button
                 onClick={() =>
                   handleQuickTask(
+                    "task-exec-summary",
                     "Elabore um Resumo Executivo estruturado em tópicos dos documentos selecionados, contendo: Visão Geral, Principais Cláusulas/Tópicos e Conclusões."
                   )
                 }
-                className="w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group"
+                disabled={isAnyTaskRunning}
+                className={`w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
+                  runningTaskId === "task-exec-summary"
+                    ? "border-[#D97706] bg-[#1C1D20]"
+                    : ""
+                } disabled:opacity-60 disabled:cursor-not-allowed`}
               >
-                <BookOpen className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Resumo Executivo
+                <div className="mt-0.5 shrink-0">
+                  {runningTaskId === "task-exec-summary" ? (
+                    <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
+                  ) : (
+                    <BookOpen className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
+                    <span>Resumo Executivo</span>
+                    <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
+                      [Executar ↵]
+                    </span>
                   </h4>
                   <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
                     Síntese completa e estruturada.
@@ -222,18 +324,34 @@ export function StudioPanel() {
                 </div>
               </button>
 
+              {/* Tarefa 2: Mapeamento de Riscos */}
               <button
                 onClick={() =>
                   handleQuickTask(
+                    "task-risk-mapping",
                     "Identifique todos os riscos, prazos fatais e cláusulas de penalidade/rescisão presentes nas fontes selecionadas."
                   )
                 }
-                className="w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group"
+                disabled={isAnyTaskRunning}
+                className={`w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
+                  runningTaskId === "task-risk-mapping"
+                    ? "border-[#D97706] bg-[#1C1D20]"
+                    : ""
+                } disabled:opacity-60 disabled:cursor-not-allowed`}
               >
-                <Scale className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Mapeamento de Riscos
+                <div className="mt-0.5 shrink-0">
+                  {runningTaskId === "task-risk-mapping" ? (
+                    <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
+                  ) : (
+                    <Scale className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
+                    <span>Mapeamento de Riscos</span>
+                    <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
+                      [Executar ↵]
+                    </span>
                   </h4>
                   <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
                     Prazos críticos e multas.
@@ -241,18 +359,34 @@ export function StudioPanel() {
                 </div>
               </button>
 
+              {/* Tarefa 3: Tabela de Valores */}
               <button
                 onClick={() =>
                   handleQuickTask(
+                    "task-data-table",
                     "Estruture uma Tabela Comparativa em Markdown com as métricas, datas, partes e valores mencionados no texto."
                   )
                 }
-                className="w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group"
+                disabled={isAnyTaskRunning}
+                className={`w-full flex items-start gap-2 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
+                  runningTaskId === "task-data-table"
+                    ? "border-[#D97706] bg-[#1C1D20]"
+                    : ""
+                } disabled:opacity-60 disabled:cursor-not-allowed`}
               >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
-                <div>
-                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white">
-                    Tabela de Valores
+                <div className="mt-0.5 shrink-0">
+                  {runningTaskId === "task-data-table" ? (
+                    <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
+                    <span>Tabela de Valores</span>
+                    <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
+                      [Executar ↵]
+                    </span>
                   </h4>
                   <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
                     Organização tabular de dados.

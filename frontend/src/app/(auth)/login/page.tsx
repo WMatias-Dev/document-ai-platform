@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getErrorMessage } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { BookOpen, Lock, Mail, Loader2, ArrowRight } from "lucide-react";
 
@@ -58,8 +58,10 @@ export default function LoginPage() {
       // Redireciona diretamente para a tela inicial (Catálogo de Cadernos)
       router.push("/");
     } catch (err: any) {
-      const msg =
-        err.response?.data?.detail || "Credenciais inválidas. Verifique os dados.";
+      const msg = getErrorMessage(
+        err,
+        "Credenciais inválidas. Verifique os dados."
+      );
       toast.error("Falha na autenticação", { description: msg });
     } finally {
       setIsLoading(false);

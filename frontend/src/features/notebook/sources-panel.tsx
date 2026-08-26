@@ -26,12 +26,18 @@ export function SourcesPanel() {
     setAddSourceModalOpen,
   } = useChatStore();
 
+  const isUUID =
+    !!activeNotebookId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      activeNotebookId
+    );
+
   const { data: documents = [], isLoading } = useQuery<DocumentItem[]>({
-    queryKey: activeNotebookId
+    queryKey: isUUID
       ? ["notebook_documents", activeNotebookId]
       : ["documents"],
     queryFn: async () => {
-      const url = activeNotebookId
+      const url = isUUID
         ? `/notebooks/${activeNotebookId}/documents`
         : "/documents/";
       const res = await apiClient.get(url);
