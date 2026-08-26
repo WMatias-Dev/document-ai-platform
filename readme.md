@@ -105,52 +105,67 @@ flowchart TB
 ### Fluxograma de Orquestração
 
 ```mermaid
-%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '13px' }}}%%
-flowchart TD
-    User(["Usuário / Frontend (Next.js)"])
-    API["FastAPI (DocumentAgent)"]
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#161719',
+    'primaryTextColor': '#E3E3E3',
+    'primaryBorderColor': '#383B40',
+    'lineColor': '#85888C',
+    'secondaryColor': '#121316',
+    'tertiaryColor': '#0C0D0E',
+    'fontFamily': 'Inter, system-ui, -apple-system, sans-serif',
+    'fontSize': '12px'
+  }
+}}%%
+flowchart TB
+    User(["🖥️ Frontend (Next.js 16 Client)"]):::clientNode
+    API["⚡ FastAPI Orchestrator (DocumentAgent)"]:::apiNode
 
     User -->|"1. POST /chat/stream"| API
 
-    %% 1. Recuperação de Contexto (RAG)
-    subgraph RAG ["1. Recuperação de Contexto"]
+    %% Subgraph 1: RAG Context Retrieval
+    subgraph RAG ["  🔍 1. Recuperação de Contexto (Vector Search)  "]
         direction TB
-        GeminiEmb["AIService (Embeddings)"]
-        PgVector[("Vector Store (pgvector)")]
+        GeminiEmb["🧠 Embedding Service (Ollama / Gemini)"]:::aiNode
+        PgVector[("🗄️ Vector Store (pgvector / HNSW)")]:::dbNode
         
-        API -->|"Gera embedding"| GeminiEmb
-        GeminiEmb -->|"query_vector"| API
-        API -->|"Busca HNSW (Top-K)"| PgVector
-        PgVector -->|"Chunks relevantes"| API
+        API -->|"Gera embedding da consulta"| GeminiEmb
+        GeminiEmb -->|"query_vector (768d)"| API
+        API -->|"Busca Cosseno Top-K"| PgVector
+        PgVector -->|"Chunks canônicos de evidência"| API
     end
 
-    API -.->|"SSE: event citations"| User
+    API == "📡 SSE [citations]: Metadados das Fontes" ==> User
 
-    %% 2. Geração e Streaming
-    subgraph Stream ["2. Geração da Resposta"]
+    %% Subgraph 2: LLM Generation & Token Stream
+    subgraph Stream ["  ✨ 2. Síntese Fundamentada & Streaming  "]
         direction TB
-        GeminiChat["AIService (Gemini Pool)"]
+        GeminiChat["🤖 AIService (Gemini Resilient Pool)"]:::aiNode
         
-        API -->|"Prompt + Contexto"| GeminiChat
-        GeminiChat -->|"Token Stream"| API
+        API -->|"Prompt Anti-Alucinação + Contexto"| GeminiChat
+        GeminiChat -->|"Stream progressivo de tokens"| API
     end
 
-    API -.->|"SSE: event delta"| User
+    API == "📡 SSE [delta]: Chunks de Texto em Tempo Real" ==> User
 
-    %% 3. Persistência
-    subgraph Persist ["3. Persistência"]
+    %% Subgraph 3: Relational Persistence
+    subgraph Persist ["  💾 3. Persistência Relacional de Conversa  "]
         direction TB
-        Postgres[("ChatRepository (PostgreSQL)")]
+        Postgres[("🏛️ ChatRepository (PostgreSQL)")]:::dbNode
         
-        API -->|"Salva mensagem e fontes"| Postgres
-        Postgres -->|"Confirmação"| API
+        API -->|"Persiste histórico e referências"| Postgres
+        Postgres -->|"Confirmação (thread_id, msg_id)"| API
     end
 
-    API -.->|"SSE: event done"| User
+    API == "📡 SSE [done]: Encerramento & Identificadores" ==> User
 
-    %% Estilos Minimalistas / Neutros
-    classDef default fill:#f9fafb,stroke:#374151,stroke-width:1px,color:#111827;
-    classDef sseLine stroke:#6b7280,stroke-width:1.5px,stroke-dasharray: 4 4;
+    %% Definições de Estilos de Alto Impacto Visual
+    classDef clientNode fill:#1E293B,stroke:#38BDF8,stroke-width:2px,color:#F8FAFC,font-weight:600;
+    classDef apiNode fill:#1C1917,stroke:#F59E0B,stroke-width:2px,color:#FEF3C7,font-weight:600;
+    classDef aiNode fill:#18181B,stroke:#A855F7,stroke-width:1.5px,color:#F3E8FF;
+    classDef dbNode fill:#18181B,stroke:#10B981,stroke-width:1.5px,color:#D1FAE5;
+    classDef default fill:#121316,stroke:#27272A,stroke-width:1px,color:#E4E4E7;
 ```
 
 ### Diagrama de Sequência Detalhado
