@@ -107,43 +107,44 @@ flowchart TB
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '12px', 'darkMode': true }}}%%
 flowchart TD
-    User["🖥️ Frontend (Next.js Client)"]
-    API["⚡ FastAPI Orchestrator (DocumentAgent)"]
+    User["Frontend (Next.js Client)"]
+    API["FastAPI Orchestrator (DocumentAgent)"]
 
     User -->|"1. POST /chat/stream"| API
 
     %% ETAPA 1
     subgraph S1 ["1. Recuperação de Contexto (Vector Search)"]
-        direction LR
-        Emb["🧬 Embedding Service<br/>(Ollama / Gemini)"]
-        PgV[("🗄️ Vector Store<br/>(pgvector / HNSW)")]
+        direction TB
+        Emb["Embedding Service<br/>(Ollama / Gemini)"]
+        PgV[("Vector Store<br/>(pgvector / HNSW)")]
         
         Emb -->|"query_vector"| PgV
     end
 
     %% ETAPA 2
-    subgraph S2 ["2. Síntese Fundamentada & Streaming"]
-        direction LR
-        LLM["✨ AIService<br/>(Gemini Resilient Pool)"]
+    subgraph S2 ["2. Síntese Fundamentada e Streaming"]
+        direction TB
+        LLM["AIService<br/>(Gemini Resilient Pool)"]
     end
 
     %% ETAPA 3
     subgraph S3 ["3. Persistência Relacional"]
-        direction LR
-        PG[("💾 ChatRepository<br/>(PostgreSQL)")]
+        direction TB
+        PG[("ChatRepository<br/>(PostgreSQL)")]
     end
 
     %% Conexões do Pipeline
     API -->|"Gera embedding da consulta"| Emb
-    PgV -->|"Top-K Chunks de evidência"| S2
+    PgV -->|"Top-K Chunks de evidência"| LLM
     
-    API -.->|"📡 SSE [citations]: Metadados"| User
+    API -.->|"SSE event: citations"| User
     
-    S2 -->|"Prompt + Contexto → Stream de tokens"| LLM
-    LLM -.->|"📡 SSE [delta]: Chunks em Tempo Real"| User
+    LLM -->|"Tokens progressivos"| API
+    API -.->|"SSE event: delta"| User
     
     LLM -->|"Resposta completa"| PG
-    PG -.->|"📡 SSE [done]: Encerramento (thread_id)"| User
+    PG -->|"Confirmação"| API
+    API -.->|"SSE event: done"| User
 
     %% Estilização limpa
     classDef default fill:#1e1e2e,stroke:#45475a,stroke-width:1px,color:#cdd6f4;
@@ -156,12 +157,12 @@ flowchart TD
 %%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '12px', 'darkMode': true }}}%%
 sequenceDiagram
     autonumber
-    actor User as 🖥️ Frontend (Next.js)
-    participant API as ⚡ FastAPI (DocumentAgent)
-    participant Emb as 🧬 Embedding (Gemini/Ollama)
-    participant Vec as 🗄️ pgvector (HNSW)
-    participant LLM as ✨ Gemini Pool
-    participant DB as 💾 PostgreSQL
+    actor User as Frontend (Next.js)
+    participant API as FastAPI (DocumentAgent)
+    participant Emb as Embedding (Gemini/Ollama)
+    participant Vec as pgvector (HNSW)
+    participant LLM as Gemini Pool
+    participant DB as PostgreSQL
 
     User->>API: POST /chat/stream
     
@@ -171,22 +172,22 @@ sequenceDiagram
         Emb-->>API: query_vector
         API->>Vec: Busca Cosseno Top-K
         Vec-->>API: Chunks de evidência
-        API-->>User: SSE [citations]
+        API-->>User: SSE event: citations
     end
 
     rect rgb(35, 40, 35)
-        Note over API,LLM: 2. Síntese & Streaming
+        Note over API,LLM: 2. Síntese e Streaming
         API->>LLM: Prompt Anti-Alucinação + Contexto
-        loop Tokens
-            LLM-->>User: SSE [delta]
+        loop Stream de Tokens
+            LLM-->>User: SSE event: delta
         end
     end
 
     rect rgb(40, 35, 35)
-        Note over API,DB: 3. Persistência
+        Note over API,DB: 3. Persistência Relacional
         API->>DB: Persiste histórico e referências
         DB-->>API: Confirmação
-        API-->>User: SSE [done]
+        API-->>User: SSE event: done
     end
 ```
 
