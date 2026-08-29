@@ -185,14 +185,25 @@ class DocumentService:
 
         query_embedding = self.embedder.generate_query_embedding(search_in.query)
 
-        raw_results = self.repository.similarity_search(
-            query_embedding=query_embedding,
-            user_id=current_user.id,
-            notebook_id=search_in.notebook_id,
-            document_id=search_in.document_id,
-            source_ids=search_in.source_ids,
-            limit=search_in.limit,
-        )
+        if hasattr(self.repository, "hybrid_search_rrf"):
+            raw_results = self.repository.hybrid_search_rrf(
+                query_text=search_in.query,
+                query_embedding=query_embedding,
+                user_id=current_user.id,
+                notebook_id=search_in.notebook_id,
+                document_id=search_in.document_id,
+                source_ids=search_in.source_ids,
+                limit=search_in.limit,
+            )
+        else:
+            raw_results = self.repository.similarity_search(
+                query_embedding=query_embedding,
+                user_id=current_user.id,
+                notebook_id=search_in.notebook_id,
+                document_id=search_in.document_id,
+                source_ids=search_in.source_ids,
+                limit=search_in.limit,
+            )
 
         results = [
             SearchResultChunk(
@@ -201,7 +212,7 @@ class DocumentService:
                 document_title=chunk.document.title if chunk.document else "",
                 chunk_index=chunk.chunk_index,
                 text_content=chunk.text_content,
-                similarity_score=round(score, 4),
+                similarity_score=round(score, 6),
             )
             for chunk, score in raw_results
         ]
