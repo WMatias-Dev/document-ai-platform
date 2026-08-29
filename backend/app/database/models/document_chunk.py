@@ -34,4 +34,10 @@ class DocumentChunk(Base):
             postgresql_with={"m": 16, "ef_construction": 64},
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+        Index(
+            "ix_document_chunks_fts",
+            "text_content",
+            postgresql_using="gin",
+            postgresql_ops={"text_content": "gin_trgm_ops"},
+        ),
     )

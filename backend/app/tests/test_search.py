@@ -45,7 +45,7 @@ def test_search_documents_success_flow():
     )
 
     mock_embedder.generate_query_embedding.return_value = [0.1] * 768
-    mock_repo.similarity_search.return_value = [(fake_chunk, 0.9)]
+    mock_repo.hybrid_search_rrf.return_value = [(fake_chunk, 0.016393)]
 
     service = DocumentService(
         repository=mock_repo,
@@ -66,11 +66,12 @@ def test_search_documents_success_flow():
     assert result_item.chunk_id == chunk_id
     assert result_item.document_id == doc_id
     assert result_item.document_title == "Contrato de Prestação de Serviços.pdf"
-    assert result_item.similarity_score == 0.9
+    assert result_item.similarity_score == 0.016393
     assert "12 meses" in result_item.text_content
 
     mock_embedder.generate_query_embedding.assert_called_once_with("Qual o prazo de vigência?")
-    mock_repo.similarity_search.assert_called_once_with(
+    mock_repo.hybrid_search_rrf.assert_called_once_with(
+        query_text="Qual o prazo de vigência?",
         query_embedding=[0.1] * 768,
         user_id=user_id,
         notebook_id=None,
