@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { PDFHighlighter } from "./pdf-highlighter";
+import { NotesEditor } from "./notes-editor";
 
 export function StudioPanel() {
   const {
@@ -159,45 +160,62 @@ export function StudioPanel() {
   return (
     <aside className="w-80 h-full border-l border-[#242628] bg-[#0C0D0E] flex flex-col shrink-0 select-none">
       {/* Studio Tab Navigation */}
-      <div className="p-2.5 border-b border-[#242628]">
+      <div className="p-2 border-b border-[#242628]">
         <div className="flex items-center gap-1 p-0.5 rounded bg-[#161719] border border-[#242628]">
           <button
+            onClick={() => setActiveStudioTab("notes")}
+            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+              activeStudioTab === "notes"
+                ? "bg-[#242628] text-[#D97706] font-medium"
+                : "text-[#85888C] hover:text-[#E3E3E3]"
+            }`}
+          >
+            Notas
+          </button>
+
+          <button
             onClick={() => setActiveStudioTab("citation")}
-            className={`flex-1 py-1 px-1.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
               activeStudioTab === "citation"
                 ? "bg-[#242628] text-[#E3E3E3] font-medium"
                 : "text-[#85888C] hover:text-[#E3E3E3]"
             }`}
           >
-            Evidência Citada
+            Evidência
           </button>
 
           <button
             onClick={() => setActiveStudioTab("overview")}
-            className={`flex-1 py-1 px-1.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
               activeStudioTab === "overview"
                 ? "bg-[#242628] text-[#E3E3E3] font-medium"
                 : "text-[#85888C] hover:text-[#E3E3E3]"
             }`}
           >
-            Tarefas Prontas
+            Tarefas
           </button>
 
           <button
             onClick={() => setActiveStudioTab("search")}
-            className={`flex-1 py-1 px-1.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
               activeStudioTab === "search"
                 ? "bg-[#242628] text-[#E3E3E3] font-medium"
                 : "text-[#85888C] hover:text-[#E3E3E3]"
             }`}
           >
-            Busca Direta
+            Busca
           </button>
         </div>
       </div>
 
       {/* Tab Contents */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        {/* ABA: CADERNO DE NOTAS & SÍNTESE */}
+        {activeStudioTab === "notes" && (
+          <div className="h-full flex flex-col animate-in fade-in duration-100 min-h-[420px]">
+            <NotesEditor />
+          </div>
+        )}
         {/* ABA 1: EVIDÊNCIA CITADA / LEITOR DE TRECHO */}
         {activeStudioTab === "citation" && (
           <div className="space-y-3 animate-in fade-in duration-100">
