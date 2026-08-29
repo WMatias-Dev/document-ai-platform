@@ -58,6 +58,13 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    # Configura a variável de contexto de sessão para Row-Level Security no PostgreSQL
+    try:
+        from sqlalchemy import text
+        db.execute(text(f"SET LOCAL app.current_user_id = '{user.id}';"))
+    except Exception:
+        pass
+
     return user
 
 

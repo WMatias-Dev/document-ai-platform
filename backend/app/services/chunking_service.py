@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Dict, List
+from app.services.sanitization_service import SanitizationService
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,8 @@ class ChunkingService:
         parsed_elements: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
-        Gera chunks preservando metadados de layout, número de página e tabelas atômicas.
+        Gera chunks preservando metadados de layout, número de página e tabelas atômicas,
+        aplicando sanitização e blindagem contra indirect prompt injection.
         """
         if not parsed_elements:
             return []
@@ -38,7 +40,8 @@ class ChunkingService:
 
         for elem in parsed_elements:
             chunk_type = elem.get("chunk_type", "text")
-            text = elem.get("text", "").strip()
+            raw_text = elem.get("text", "")
+            text = SanitizationService.sanitize_text(raw_text)
             page_num = elem.get("page_number", 1)
             bbox = elem.get("bounding_box", [0.0, 0.0, 1.0, 1.0])
 
