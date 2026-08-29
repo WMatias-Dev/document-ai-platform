@@ -23,7 +23,9 @@ from app.database.models.chat_message import ChatMessage
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# oconfiguração do lifespan
+from app.core.ingestion_queue import ingestion_queue
+
+# Configuração do lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Preparando banco de dados...")
@@ -37,7 +39,13 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     print("Tabelas criadas com sucesso!")
 
+    # 3. Inicia a fila de ingestão assíncrona local
+    await ingestion_queue.start()
+
     yield
+
+    # 4. Encerra a fila no shutdown
+    await ingestion_queue.stop()
 
 
 from fastapi.middleware.cors import CORSMiddleware

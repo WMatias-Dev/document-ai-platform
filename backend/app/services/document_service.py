@@ -22,6 +22,8 @@ from app.services.storage_service import StorageService
 logger = logging.getLogger(__name__)
 
 
+from app.core.ingestion_queue import ingestion_queue
+
 class DocumentService:
     def __init__(
         self,
@@ -45,12 +47,12 @@ class DocumentService:
         self,
         file: UploadFile,
         owner_id: uuid.UUID,
-        background_tasks: BackgroundTasks,
+        background_tasks: Optional[BackgroundTasks] = None,
         notebook_id: Optional[uuid.UUID] = None,
     ) -> dict:
         """
-        Recebe o upload, persiste o arquivo físico e registra os metadados iniciais no banco,
-        vinculando opcionalmente ao notebook_id especificado.
+        Recebe o upload, persiste o arquivo físico, cria o registro e despacha
+        para a fila assíncrona local (zero bloqueio de thread).
         """
         try:
             file_path = await self.storage.save_file(file)
@@ -80,30 +82,48 @@ class DocumentService:
             owner_id=owner_id,
         )
 
-        background_tasks.add_task(
-            self._run_pipeline,
-            document_record.id,
-            str(file_path),
+        # Enfileira na fila assíncrona local com semáforo
+        await ingestion_queue.enqueue(
+            document_id=document_record.id,
+            file_path=str(file_path),
+            pipeline_func=self._run_pipeline,
         )
 
         return {
             "document_id": document_record.id,
-            "status": "processing",
+            "status": "queued",
             "notebook_id": notebook_id,
         }
 
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
         """
-        Orquestra o pipeline em background (parsing, chunking, embeddings).
-        Usa uma sessão dedicada caso instanciada com session_factory.
+        Orquestra o pipeline em background com controle de progresso granular.
         """
         db = self.session_factory() if self.session_factory else None
         repo = DocumentRepository(db) if db else self.repository
         embedder = EmbeddingService(repository=repo) if db else self.embedder
 
+        def _notify(status_str: str, progress_num: int, msg: str):
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(ingestion_queue.emit_progress(document_id, status_str, progress_num, msg))
+                else:
+                    loop.run_until_complete(ingestion_queue.emit_progress(document_id, status_str, progress_num, msg))
+            except Exception:
+                pass
+
         try:
             repo.update_status(document_id=document_id, status=DocumentStatus.PARSING)
-            extracted_text = self.parser.extract_text(file_path)
+            _notify("parsing", 25, "Extraindo layout e tabelas estruturadas com PyMuPDF...")
+
+            if hasattr(self.parser, "extract_structured_pages"):
+                parsed_elements = self.parser.extract_structured_pages(file_path)
+                extracted_text = "\n\n".join(elem["text"] for elem in parsed_elements)
+            else:
+                extracted_text = self.parser.extract_text(file_path)
+                parsed_elements = [{"text": extracted_text, "page_number": 1, "chunk_type": "text", "bounding_box": [0.0, 0.0, 1.0, 1.0]}]
 
             repo.update_document_content(
                 document_id=document_id,
@@ -112,27 +132,42 @@ class DocumentService:
             )
 
             repo.update_status(document_id=document_id, status=DocumentStatus.CHUNKING)
-            raw_chunks = self.chunker.chunk_text(extracted_text)
+            _notify("chunking", 50, "Particionando texto e preservando tabelas em Markdown...")
+
+            if hasattr(self.chunker, "chunk_structured_document"):
+                structured_chunks = self.chunker.chunk_structured_document(parsed_elements)
+            else:
+                raw_texts = self.chunker.chunk_text(extracted_text)
+                structured_chunks = [
+                    {"text_content": txt, "page_number": 1, "chunk_type": "text", "bounding_box": [0.0, 0.0, 1.0, 1.0]}
+                    for txt in raw_texts
+                ]
 
             chunks_data = [
                 {
                     "document_id": document_id,
                     "chunk_index": idx,
-                    "text_content": chunk,
+                    "page_number": chunk.get("page_number", 1),
+                    "chunk_type": chunk.get("chunk_type", "text"),
+                    "text_content": chunk.get("text_content", chunk.get("text", "")),
+                    "bounding_box": chunk.get("bounding_box"),
                 }
-                for idx, chunk in enumerate(raw_chunks)
+                for idx, chunk in enumerate(structured_chunks)
             ]
             repo.create_chunks(chunks_data)
 
+            _notify("embedding", 75, "Gerando embeddings vetoriais (768d)...")
             if hasattr(embedder, "process_document"):
                 embedder.process_document(document_id)
 
             repo.update_status(document_id=document_id, status=DocumentStatus.COMPLETED)
+            _notify("ready", 100, "Documento indexado e pronto para pesquisa.")
 
         except Exception as e:
             logger.error(
                 f"Erro no pipeline do documento {document_id}: {e}", exc_info=True
             )
+            _notify("error", 0, f"Falha no processamento: {str(e)}")
             try:
                 repo.update_status(
                     document_id=document_id,
@@ -225,6 +260,9 @@ class DocumentService:
                 "document_id": chunk.document_id,
                 "document_title": chunk.document.title if chunk.document else "",
                 "chunk_index": chunk.chunk_index,
+                "page_number": getattr(chunk, "page_number", 1),
+                "chunk_type": getattr(chunk, "chunk_type", "text"),
+                "bounding_box": getattr(chunk, "bounding_box", None),
                 "text": chunk.text_content,
                 "score": float(score),
             }
@@ -247,6 +285,9 @@ class DocumentService:
                 document_id=item["document_id"],
                 document_title=item["document_title"],
                 chunk_index=item["chunk_index"],
+                page_number=item.get("page_number") or 1,
+                chunk_type=item.get("chunk_type") or "text",
+                bounding_box=item.get("bounding_box"),
                 text_content=item["text"],
                 similarity_score=round(item.get("rerank_score", item.get("score", 0.0)), 6),
             )

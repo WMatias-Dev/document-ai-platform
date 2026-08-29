@@ -18,3 +18,4 @@ llama-index-embeddings-ollama
 aiofiles
 google-genai
 flashrank
+pymupdf

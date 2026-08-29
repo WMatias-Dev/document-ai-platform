@@ -16,7 +16,7 @@ def test_background_pipeline_failure_updates_status_to_failed():
     mock_chunker = MagicMock()
     mock_embedder = MagicMock()
 
-    mock_parser.extract_text.side_effect = RuntimeError("Erro simulado no PDF")
+    mock_parser.extract_structured_pages.side_effect = RuntimeError("Erro simulado no PDF")
 
     service = DocumentService(
         repository=mock_repo,
@@ -35,7 +35,7 @@ def test_background_pipeline_failure_updates_status_to_failed():
         document_id=doc_id,
         status=DocumentStatus.ERROR,
     )
-    mock_chunker.chunk_text.assert_not_called()
+    mock_chunker.chunk_structured_document.assert_not_called()
     mock_embedder.process_document.assert_not_called()
 
 
@@ -49,8 +49,12 @@ def test_background_pipeline_embedding_failure_updates_status_to_failed():
     mock_chunker = MagicMock()
     mock_embedder = MagicMock()
 
-    mock_parser.extract_text.return_value = "Texto extraído com sucesso"
-    mock_chunker.chunk_text.return_value = ["Chunk 1", "Chunk 2"]
+    mock_parser.extract_structured_pages.return_value = [
+        {"text": "Texto extraído com sucesso", "page_number": 1, "chunk_type": "text", "bounding_box": [0, 0, 1, 1]}
+    ]
+    mock_chunker.chunk_structured_document.return_value = [
+        {"text_content": "Chunk 1", "page_number": 1, "chunk_type": "text", "bounding_box": [0, 0, 1, 1]}
+    ]
     mock_embedder.process_document.side_effect = ConnectionError("Ollama fora do ar")
 
     service = DocumentService(
@@ -82,8 +86,12 @@ def test_background_pipeline_success_flow():
     mock_chunker = MagicMock()
     mock_embedder = MagicMock()
 
-    mock_parser.extract_text.return_value = "Texto extraído com sucesso"
-    mock_chunker.chunk_text.return_value = ["Chunk 1", "Chunk 2"]
+    mock_parser.extract_structured_pages.return_value = [
+        {"text": "Texto extraído com sucesso", "page_number": 1, "chunk_type": "text", "bounding_box": [0, 0, 1, 1]}
+    ]
+    mock_chunker.chunk_structured_document.return_value = [
+        {"text_content": "Chunk 1", "page_number": 1, "chunk_type": "text", "bounding_box": [0, 0, 1, 1]}
+    ]
 
     service = DocumentService(
         repository=mock_repo,
