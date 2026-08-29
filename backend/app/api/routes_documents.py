@@ -145,6 +145,24 @@ def get_document(
     )
 
 
+@router.get("/{document_id}/file", summary="Retorna o arquivo binário do PDF")
+def get_document_file(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: DocumentService = Depends(get_document_service),
+):
+    from fastapi.responses import FileResponse
+    doc = service.get_document(document_id=document_id, current_user=current_user)
+    if not doc.file_path or not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="Arquivo físico do PDF não encontrado.")
+
+    return FileResponse(
+        path=doc.file_path,
+        media_type="application/pdf",
+        filename=doc.filename or f"documento_{document_id}.pdf",
+    )
+
+
 @router.delete(
     "/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,

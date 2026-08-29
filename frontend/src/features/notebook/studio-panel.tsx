@@ -20,6 +20,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { PDFHighlighter } from "./pdf-highlighter";
+
 export function StudioPanel() {
   const {
     activeNotebookId,
@@ -40,6 +42,7 @@ export function StudioPanel() {
   const [searchResults, setSearchResults] = useState<SearchResultChunk[]>([]);
   const [isCopied, setIsCopied] = useState(false);
   const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+  const [showPdfViewer, setShowPdfViewer] = useState(true);
 
   // Mutação RAG para execução de tarefas analíticas
   const taskMutation = useMutation({
@@ -229,6 +232,19 @@ export function StudioPanel() {
                   </div>
                 </div>
 
+                {/* Visualizador de PDF com Destaque de Bounding Box */}
+                {selectedCitation.document_id && (
+                  <div className="space-y-1">
+                    <PDFHighlighter
+                      documentId={selectedCitation.document_id}
+                      documentTitle={selectedCitation.document_title}
+                      pageNumber={selectedCitation.page_number || selectedCitation.chunk_index + 1}
+                      boundingBox={selectedCitation.bounding_box}
+                      snippetText={selectedCitation.text_snippet}
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
@@ -253,7 +269,7 @@ export function StudioPanel() {
                   </div>
 
                   {/* Highlight Box Marca-Texto Ocre */}
-                  <div className="rounded border-l-2 border-l-[#D97706] border border-[#242628] bg-[#D97706]/10 p-3 text-xs font-serif text-[#FDE68A] leading-relaxed max-h-[55vh] overflow-y-auto whitespace-pre-wrap">
+                  <div className="rounded border-l-2 border-l-[#D97706] border border-[#242628] bg-[#D97706]/10 p-3 text-xs font-serif text-[#FDE68A] leading-relaxed max-h-[30vh] overflow-y-auto whitespace-pre-wrap">
                     "{selectedCitation.text_snippet}"
                   </div>
                 </div>

@@ -68,6 +68,9 @@ class DocumentAgent:
                 chunk_index=item.chunk_index,
                 text_snippet=item.text_content,
                 similarity_score=item.similarity_score,
+                page_number=getattr(item, "page_number", 1),
+                chunk_type=getattr(item, "chunk_type", "text"),
+                bounding_box=getattr(item, "bounding_box", None),
             )
             for item in search_response.results
         ]
@@ -76,7 +79,7 @@ class DocumentAgent:
             context_blocks = []
             for i, cite in enumerate(citations, 1):
                 block = (
-                    f"--- Fonte [{i}] Documento: '{cite.document_title}' (Trecho {cite.chunk_index}) ---\n"
+                    f"--- Fonte [{i}] Documento: '{cite.document_title}' (Pág. {cite.page_number}) ---\n"
                     f"{cite.text_snippet}\n"
                 )
                 context_blocks.append(block)
