@@ -66,7 +66,7 @@ def test_search_documents_success_flow():
     assert result_item.chunk_id == chunk_id
     assert result_item.document_id == doc_id
     assert result_item.document_title == "Contrato de Prestação de Serviços.pdf"
-    assert result_item.similarity_score == 0.016393
+    assert result_item.similarity_score > 0.9  # FlashRank atribuiu alta confiança (~0.99)
     assert "12 meses" in result_item.text_content
 
     mock_embedder.generate_query_embedding.assert_called_once_with("Qual o prazo de vigência?")
@@ -77,7 +77,7 @@ def test_search_documents_success_flow():
         notebook_id=None,
         document_id=None,
         source_ids=None,
-        limit=3,
+        limit=15,
     )
 
 

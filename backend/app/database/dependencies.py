@@ -61,6 +61,12 @@ def get_current_user(
     return user
 
 
+from app.services.rerank_service import RerankService
+
+# Instância reutilizada do modelo ONNX em memória (~15MB)
+_shared_rerank_service = RerankService()
+
+
 def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
     repository = DocumentRepository(db)
     storage = StorageService()
@@ -74,6 +80,7 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
         parser=parser,
         chunker=chunker,
         embedder=embedder,
+        reranker=_shared_rerank_service,
         session_factory=SessionLocal,
     )
 

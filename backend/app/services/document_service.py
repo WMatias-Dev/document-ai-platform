@@ -16,6 +16,7 @@ from app.schemas.document_schema import (
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.parsing_service import ParsingService
+from app.services.rerank_service import RerankService
 from app.services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class DocumentService:
         parser: ParsingService,
         chunker: ChunkingService,
         embedder: EmbeddingService,
+        reranker: Optional[RerankService] = None,
         session_factory: Optional[Callable[[], Session]] = None,
     ):
         self.repository = repository
@@ -36,6 +38,7 @@ class DocumentService:
         self.parser = parser
         self.chunker = chunker
         self.embedder = embedder
+        self.reranker = reranker or RerankService()
         self.session_factory = session_factory
 
     async def process_upload(
@@ -185,6 +188,9 @@ class DocumentService:
 
         query_embedding = self.embedder.generate_query_embedding(search_in.query)
 
+        # 1. Recupera um pool de candidatos mais amplo para o Rerank (Top-15 ou 3x o limit)
+        candidate_limit = max(15, search_in.limit * 3)
+
         if hasattr(self.repository, "hybrid_search_rrf"):
             raw_results = self.repository.hybrid_search_rrf(
                 query_text=search_in.query,
@@ -193,7 +199,7 @@ class DocumentService:
                 notebook_id=search_in.notebook_id,
                 document_id=search_in.document_id,
                 source_ids=search_in.source_ids,
-                limit=search_in.limit,
+                limit=candidate_limit,
             )
         else:
             raw_results = self.repository.similarity_search(
@@ -202,19 +208,49 @@ class DocumentService:
                 notebook_id=search_in.notebook_id,
                 document_id=search_in.document_id,
                 source_ids=search_in.source_ids,
-                limit=search_in.limit,
+                limit=candidate_limit,
             )
+
+        if not raw_results:
+            return DocumentSearchResponse(
+                query=search_in.query,
+                total_results=0,
+                results=[],
+            )
+
+        # 2. Formata candidatos para o Cross-Encoder
+        candidates = [
+            {
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "document_title": chunk.document.title if chunk.document else "",
+                "chunk_index": chunk.chunk_index,
+                "text": chunk.text_content,
+                "score": float(score),
+            }
+            for chunk, score in raw_results
+        ]
+
+        # 3. Executa Rerank (se habilitado) para filtrar até search_in.limit
+        if self.reranker:
+            reranked_candidates = self.reranker.rerank(
+                query=search_in.query,
+                candidates=candidates,
+                top_n=search_in.limit,
+            )
+        else:
+            reranked_candidates = candidates[:search_in.limit]
 
         results = [
             SearchResultChunk(
-                chunk_id=chunk.id,
-                document_id=chunk.document_id,
-                document_title=chunk.document.title if chunk.document else "",
-                chunk_index=chunk.chunk_index,
-                text_content=chunk.text_content,
-                similarity_score=round(score, 6),
+                chunk_id=item["chunk_id"],
+                document_id=item["document_id"],
+                document_title=item["document_title"],
+                chunk_index=item["chunk_index"],
+                text_content=item["text"],
+                similarity_score=round(item.get("rerank_score", item.get("score", 0.0)), 6),
             )
-            for chunk, score in raw_results
+            for item in reranked_candidates
         ]
 
         return DocumentSearchResponse(
