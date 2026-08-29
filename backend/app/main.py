@@ -39,7 +39,11 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     print("Tabelas criadas com sucesso!")
 
-    # 3. Inicia a fila de ingestão assíncrona local
+    # 3. Aplica Row-Level Security nativo no PostgreSQL
+    from app.database.rls import setup_row_level_security
+    setup_row_level_security(engine)
+
+    # 4. Inicia a fila de ingestão assíncrona local
     await ingestion_queue.start()
 
     yield
