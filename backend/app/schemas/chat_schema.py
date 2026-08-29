@@ -18,6 +18,9 @@ class DocumentCitation(BaseModel):
     chunk_index: int
     text_snippet: str
     similarity_score: float
+    page_number: int = 1
+    chunk_type: str = "text"
+    bounding_box: Optional[List[float]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

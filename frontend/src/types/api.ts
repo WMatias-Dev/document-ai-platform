@@ -60,6 +60,9 @@ export interface SearchResultChunk {
   chunk_index: number;
   text_content: string;
   similarity_score: number;
+  page_number?: number;
+  chunk_type?: "text" | "table" | string;
+  bounding_box?: [number, number, number, number] | null;
 }
 
 export interface DocumentSearchRequest {
@@ -88,6 +91,9 @@ export interface DocumentCitation {
   chunk_index: number;
   text_snippet: string;
   similarity_score: number;
+  page_number?: number;
+  chunk_type?: "text" | "table" | string;
+  bounding_box?: [number, number, number, number] | null;
 }
 
 export interface ChatRequest {
