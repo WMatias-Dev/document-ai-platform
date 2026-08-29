@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import List
 
@@ -10,6 +11,8 @@ from fastapi import (
     status,
     BackgroundTasks,
 )
+from fastapi.responses import StreamingResponse
+from app.core.ingestion_queue import ingestion_queue
 
 from app.database.dependencies import get_current_user, get_document_service
 from app.database.models.user import User
@@ -72,6 +75,37 @@ async def upload_document(
         owner_id=current_user.id,
         background_tasks=background_tasks,
         notebook_id=notebook_id,
+    )
+
+
+@router.get(
+    "/{document_id}/progress",
+    summary="Acompanhamento do progresso de processamento em tempo real (SSE)",
+)
+async def get_document_progress(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: DocumentService = Depends(get_document_service),
+):
+    """
+    Transmite eventos Server-Sent Events (SSE) com status percentual da ingestão
+    (parsing -> chunking -> embedding -> ready).
+    """
+    # Valida ownership do documento
+    service.get_document(document_id=document_id, current_user=current_user)
+
+    async def sse_stream():
+        async for event in ingestion_queue.subscribe(document_id):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        sse_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

@@ -47,3 +47,36 @@ def test_chunking_empty_text():
     chunker = ChunkingService(chunk_size=1000, overlap=200)
     assert chunker.chunk_text("") == []
     assert chunker.chunk_text("   ") == []
+
+
+def test_chunk_structured_document_preserves_tables_atomically():
+    chunker = ChunkingService(chunk_size=100, overlap=20)
+
+    table_markdown = "| Produto | Quantidade | Preço |\n|---|---|---|\n| Servidor | 2 | R$ 15.000 |"
+    parsed_elements = [
+        {
+            "chunk_type": "table",
+            "page_number": 2,
+            "text": table_markdown,
+            "bounding_box": [0.1, 0.2, 0.9, 0.5],
+        },
+        {
+            "chunk_type": "text",
+            "page_number": 2,
+            "text": "Parágrafo breve explicativo.",
+            "bounding_box": [0.1, 0.6, 0.9, 0.7],
+        },
+    ]
+
+    structured_chunks = chunker.chunk_structured_document(parsed_elements)
+
+    assert len(structured_chunks) == 2
+    # Tabela mantida intacta
+    assert structured_chunks[0]["chunk_type"] == "table"
+    assert structured_chunks[0]["page_number"] == 2
+    assert structured_chunks[0]["text_content"] == table_markdown
+    assert structured_chunks[0]["bounding_box"] == [0.1, 0.2, 0.9, 0.5]
+
+    # Texto
+    assert structured_chunks[1]["chunk_type"] == "text"
+    assert structured_chunks[1]["text_content"] == "Parágrafo breve explicativo."
