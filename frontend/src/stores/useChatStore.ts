@@ -8,7 +8,7 @@ export interface DisplayMessage extends ChatMessage {
   createdAt: Date;
 }
 
-export type StudioTab = "overview" | "citation" | "search";
+export type StudioTab = "overview" | "notes" | "citation" | "search";
 
 interface ChatState {
   activeNotebookId: string | null;
@@ -17,6 +17,7 @@ interface ChatState {
   // Isolamento por Caderno: Record<notebookId, mensagens[]>
   messagesByNotebook: Record<string, DisplayMessage[]>;
   threadsByNotebook: Record<string, string | null>;
+  notesByNotebook: Record<string, string>;
 
   selectedDocumentId: string | null;
   selectedSourceIds: string[];
@@ -38,6 +39,11 @@ interface ChatState {
   // Indicadores de Estado
   setIsChatLoading: (loading: boolean) => void;
   setIsStreaming: (streaming: boolean) => void;
+
+  // Gerenciamento de Notas
+  getNoteForNotebook: (notebookId?: string | null) => string;
+  updateNoteForNotebook: (notebookId: string | null, content: string) => void;
+  appendNoteToNotebook: (notebookId: string | null, textToAppend: string) => void;
 
   // Seletores e Mutações de Mensagens Isoladas por Caderno
   getMessages: (notebookId?: string | null) => DisplayMessage[];
@@ -74,6 +80,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   notebookTitle: "Caderno Sem Título",
   messagesByNotebook: {},
   threadsByNotebook: {},
+  notesByNotebook: {},
 
   selectedDocumentId: null,
   selectedSourceIds: [],
@@ -84,6 +91,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isChatLoading: false,
   isStreaming: false,
   isCitationSheetOpen: false,
+
+  // Gerenciamento de Notas por Caderno
+  getNoteForNotebook: (notebookId) => {
+    const key = getNotebookKey(notebookId !== undefined ? notebookId : get().activeNotebookId);
+    return get().notesByNotebook[key] || "";
+  },
+
+  updateNoteForNotebook: (notebookId, content) => {
+    const key = getNotebookKey(notebookId !== undefined ? notebookId : get().activeNotebookId);
+    set((state) => ({
+      notesByNotebook: {
+        ...state.notesByNotebook,
+        [key]: content,
+      },
+    }));
+  },
+
+  appendNoteToNotebook: (notebookId, textToAppend) => {
+    const key = getNotebookKey(notebookId !== undefined ? notebookId : get().activeNotebookId);
+    set((state) => {
+      const current = state.notesByNotebook[key] || "";
+      const updated = current
+        ? `${current}\n\n${textToAppend}`
+        : textToAppend;
+      return {
+        notesByNotebook: {
+          ...state.notesByNotebook,
+          [key]: updated,
+        },
+        activeStudioTab: "notes",
+      };
+    });
+  },
 
   setActiveNotebookId: (id) => set({ activeNotebookId: id }),
   setNotebookTitle: (title) => set({ notebookTitle: title }),

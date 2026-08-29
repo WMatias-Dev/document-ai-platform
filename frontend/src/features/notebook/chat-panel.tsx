@@ -22,6 +22,7 @@ import {
   CornerDownLeft,
   Search,
   Sparkles,
+  FileEdit,
 } from "lucide-react";
 
 export function ChatPanel() {
@@ -42,6 +43,7 @@ export function ChatPanel() {
     setAddSourceModalOpen,
     isStreaming,
     setIsStreaming,
+    appendNoteToNotebook,
   } = useChatStore();
 
   const [inputText, setInputText] = useState("");
@@ -447,6 +449,17 @@ export function ChatPanel() {
                         {msg.model}
                       </span>
                     )}
+                    <button
+                      onClick={() => {
+                        appendNoteToNotebook(activeNotebookId, msg.content);
+                        toast.success("Parecer adicionado ao Caderno de Notas!");
+                      }}
+                      className="inline-flex items-center gap-1 rounded bg-[#242628] hover:bg-[#383B40] hover:text-[#D97706] px-1.5 py-0.5 text-[10px] font-mono text-[#E3E3E3] transition-colors cursor-pointer"
+                      title="Copiar parecer diretamente para as Notas de Síntese"
+                    >
+                      <FileEdit className="h-2.5 w-2.5" />
+                      <span>+ Nota</span>
+                    </button>
                     <span className="text-[#55585D]">
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString("pt-BR", {
                         hour: "2-digit",
