@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
 
+    # Configuração de Provedor de Embeddings ("ollama" ou "gemini")
+    EMBEDDING_PROVIDER: str = "ollama"
+
     # Configurações do Ollama (Embeddings e LLM)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"

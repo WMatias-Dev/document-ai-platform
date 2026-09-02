@@ -29,10 +29,7 @@ def get_db():
 oauth_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
-def get_current_user(
-    token: str = Depends(oauth_scheme),
-    db: Session = Depends(get_db)
-) -> User:
+def get_user_by_token(token: str, db: Session) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Não foi possível validar as credenciais.",
@@ -58,14 +55,14 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
-    # Configura a variável de contexto de sessão para Row-Level Security no PostgreSQL
-    try:
-        from sqlalchemy import text
-        db.execute(text(f"SET LOCAL app.current_user_id = '{user.id}';"))
-    except Exception:
-        pass
-
     return user
+
+
+def get_current_user(
+    token: str = Depends(oauth_scheme),
+    db: Session = Depends(get_db)
+) -> User:
+    return get_user_by_token(token, db)
 
 
 from app.services.rerank_service import RerankService

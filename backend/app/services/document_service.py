@@ -223,8 +223,8 @@ class DocumentService:
 
         query_embedding = self.embedder.generate_query_embedding(search_in.query)
 
-        # 1. Recupera um pool de candidatos mais amplo para o Rerank (Top-15 ou 3x o limit)
-        candidate_limit = max(15, search_in.limit * 3)
+        # 1. Recupera um pool de candidatos mais amplo para o Rerank (Mínimo 50 ou 2x o limit)
+        candidate_limit = max(50, search_in.limit * 2)
 
         if hasattr(self.repository, "hybrid_search_rrf"):
             raw_results = self.repository.hybrid_search_rrf(
