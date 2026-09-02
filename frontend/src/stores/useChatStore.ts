@@ -27,7 +27,6 @@ interface ChatState {
   isAddSourceModalOpen: boolean;
   isChatLoading: boolean;
   isStreaming: boolean;
-  isCitationSheetOpen: boolean;
 
   // Setters de Caderno e Thread
   setActiveNotebookId: (id: string | null) => void;
@@ -66,8 +65,6 @@ interface ChatState {
 
   // Studio e Citações
   setActiveStudioTab: (tab: StudioTab) => void;
-  openCitation: (citation: DocumentCitation) => void;
-  closeCitation: () => void;
   openCitationInStudio: (citation: DocumentCitation) => void;
   openSearchResultInStudio: (chunk: SearchResultChunk) => void;
   setAddSourceModalOpen: (open: boolean) => void;
@@ -90,7 +87,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isAddSourceModalOpen: false,
   isChatLoading: false,
   isStreaming: false,
-  isCitationSheetOpen: false,
 
   // Gerenciamento de Notas por Caderno
   getNoteForNotebook: (notebookId) => {
@@ -268,18 +264,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Visualizador e Studio
   setActiveStudioTab: (tab) => set({ activeStudioTab: tab }),
-
-  openCitation: (citation) =>
-    set({
-      selectedCitation: citation,
-      isCitationSheetOpen: true,
-    }),
-
-  closeCitation: () =>
-    set({
-      isCitationSheetOpen: false,
-      selectedCitation: null,
-    }),
 
   openCitationInStudio: (citation) =>
     set({
