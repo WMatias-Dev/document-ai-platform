@@ -14,8 +14,6 @@ import {
   LayoutGrid,
   List,
   Loader2,
-  FolderKanban,
-  FileSpreadsheet,
 } from "lucide-react";
 
 type FilterTab = "all" | "models";
@@ -55,95 +53,95 @@ export function HomeView() {
     });
 
   return (
-    <div className="min-h-screen bg-[#0C0D0E] text-[#E3E3E3] flex flex-col selection:bg-[#D97706]/20 selection:text-[#FDE68A]">
-      {/* 1. Header de Ferramenta */}
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col selection:bg-emerald-100 selection:text-emerald-800">
+      {/* 1. Header Global */}
       <HomeHeader />
 
       {/* 2. Conteúdo Principal */}
       <main className="flex-1 mx-auto w-full max-w-7xl px-6 sm:px-10 py-8 space-y-8">
         {/* Barra de Controles e Filtros */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-[#242628]">
-          {/* Navegação de Abas Austeras */}
-          <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
+          {/* Navegação de Abas */}
+          <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab("all")}
-              className={`rounded px-3 py-1 text-xs font-mono transition-colors cursor-pointer ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
                 activeTab === "all"
-                  ? "bg-[#161719] text-[#E3E3E3] border border-[#242628]"
-                  : "text-[#85888C] hover:text-[#E3E3E3]"
+                  ? "bg-white text-emerald-800 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Acervo de Cadernos ({notebooks.length})
+              Meus Cadernos ({notebooks.length})
             </button>
 
             <button
               onClick={() => setActiveTab("models")}
-              className={`rounded px-3 py-1 text-xs font-mono transition-colors cursor-pointer ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
                 activeTab === "models"
-                  ? "bg-[#161719] text-[#E3E3E3] border border-[#242628]"
-                  : "text-[#85888C] hover:text-[#E3E3E3]"
+                  ? "bg-white text-emerald-800 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Modelos de Análise
             </button>
           </div>
 
-          {/* Ações Técnicas */}
+          {/* Ações e Filtros */}
           <div className="flex items-center gap-2.5">
-            {/* Campo de Busca Rápida */}
-            <div className="flex items-center gap-1.5 rounded border border-[#242628] bg-[#161719] px-2.5 py-1">
-              <Search className="h-3.5 w-3.5 text-[#85888C]" />
+            {/* Campo de Busca */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-2xs focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+              <Search className="h-4 w-4 text-slate-400" />
               <input
+                id="search-notebooks-input"
+                name="search-notebooks"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filtrar cadernos..."
-                className="bg-transparent text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none w-32 sm:w-48 font-sans"
+                className="bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-36 sm:w-48 font-sans"
               />
             </div>
 
             {/* Ordenação */}
             <select
+              id="sort-notebooks-select"
+              name="sort"
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="rounded border border-[#242628] bg-[#161719] px-2 py-1 text-xs font-mono text-[#85888C] focus:outline-none cursor-pointer"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-sans text-slate-700 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
             >
-              <option value="recent" className="bg-[#161719] text-[#E3E3E3]">
-                Mais Recentes ▾
-              </option>
-              <option value="alpha" className="bg-[#161719] text-[#E3E3E3]">
-                Nome (A-Z) ▾
-              </option>
+              <option value="recent">Mais Recentes</option>
+              <option value="alpha">Nome (A-Z)</option>
             </select>
 
             {/* Alternador de Grade / Lista */}
-            <div className="hidden sm:flex items-center rounded border border-[#242628] bg-[#161719] p-0.5 text-[#85888C]">
+            <div className="hidden sm:flex items-center rounded-xl border border-slate-200 bg-white p-1 text-slate-500 shadow-2xs">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-1 rounded transition-colors ${
-                  viewMode === "grid" ? "bg-[#242628] text-[#E3E3E3]" : "hover:text-[#E3E3E3]"
+                className={`p-1 rounded-lg transition-colors ${
+                  viewMode === "grid" ? "bg-slate-100 text-emerald-700" : "hover:text-slate-900"
                 }`}
                 title="Visualização em Grade"
               >
-                <LayoutGrid className="h-3 w-3" />
+                <LayoutGrid className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-1 rounded transition-colors ${
-                  viewMode === "list" ? "bg-[#242628] text-[#E3E3E3]" : "hover:text-[#E3E3E3]"
+                className={`p-1 rounded-lg transition-colors ${
+                  viewMode === "list" ? "bg-slate-100 text-emerald-700" : "hover:text-slate-900"
                 }`}
                 title="Visualização em Lista"
               >
-                <List className="h-3 w-3" />
+                <List className="h-3.5 w-3.5" />
               </button>
             </div>
 
             {/* Ação Primária: + Novo Caderno */}
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] font-medium px-3.5 py-1 text-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 text-xs transition-all shadow-sm hover:shadow-emerald-600/20 cursor-pointer active:scale-[0.98]"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               <span>Novo Caderno</span>
             </button>
           </div>
@@ -154,28 +152,28 @@ export function HomeView() {
           <FeaturedNotebooks />
         )}
 
-        {/* 4. Seção Principal de Cadernos do Acervo */}
+        {/* 4. Seção Principal de Cadernos */}
         {(activeTab === "all") && (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between border-b border-[#242628] pb-2">
+          <section className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-[#85888C]">
-                  Cadernos em Custódia
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                  Cadernos em Andamento
                 </h2>
-                <span className="text-[10px] font-mono text-[#55585D]">
-                  [{filteredNotebooks.length} Registros]
+                <span className="text-xs font-mono font-medium text-slate-400">
+                  ({filteredNotebooks.length})
                 </span>
               </div>
             </div>
 
             {isLoading ? (
-              <div className="flex items-center justify-center p-12 text-[#85888C] gap-2 text-xs font-mono">
-                <Loader2 className="h-4 w-4 animate-spin text-[#85888C]" />
-                <span>Consultando acervo...</span>
+              <div className="flex items-center justify-center p-12 text-slate-500 gap-2 text-xs font-sans">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                <span>Carregando cadernos...</span>
               </div>
             ) : (
               <div
-                className={`grid gap-3 ${
+                className={`grid gap-4 ${
                   viewMode === "grid"
                     ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
                     : "grid-cols-1"

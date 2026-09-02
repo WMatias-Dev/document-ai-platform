@@ -12,8 +12,8 @@ import {
   MoreVertical,
   Trash2,
   Edit2,
-  Folder,
   ArrowRight,
+  BookOpen,
 } from "lucide-react";
 
 interface NotebookCardProps {
@@ -82,12 +82,12 @@ export function NotebookCard({ notebook, index }: NotebookCardProps) {
   return (
     <div
       onClick={handleOpenNotebook}
-      className="group relative flex flex-col justify-between rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-4 transition-all cursor-pointer min-h-[160px] select-none"
+      className="group relative flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-500/5 p-4.5 transition-all cursor-pointer min-h-[165px] select-none shadow-xs active:scale-[0.98]"
     >
       {/* Top Header: Code Tag & Context Actions */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-[#85888C] bg-[#0C0D0E] px-1.5 py-0.5 rounded border border-[#242628]">
+          <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500 bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/60">
             {docCode}
           </span>
         </div>
@@ -99,15 +99,15 @@ export function NotebookCard({ notebook, index }: NotebookCardProps) {
               e.stopPropagation();
               setIsMenuOpen(!isMenuOpen);
             }}
-            className="rounded p-1 text-[#85888C] hover:text-[#E3E3E3] hover:bg-[#242628] transition-colors cursor-pointer"
+            className="rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            <MoreVertical className="h-3.5 w-3.5" />
+            <MoreVertical className="h-4 w-4" />
           </button>
 
           {isMenuOpen && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-6 z-30 w-36 rounded border border-[#242628] bg-[#161719] p-1 shadow-2xl space-y-0.5 animate-in fade-in duration-100"
+              className="absolute right-0 top-7 z-30 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl space-y-0.5 animate-in fade-in duration-100"
             >
               <button
                 onClick={(e) => {
@@ -115,19 +115,19 @@ export function NotebookCard({ notebook, index }: NotebookCardProps) {
                   setIsMenuOpen(false);
                   setIsEditing(true);
                 }}
-                className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs font-sans text-[#E3E3E3] hover:bg-[#242628] transition-colors text-left cursor-pointer"
+                className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-sans text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left cursor-pointer"
               >
-                <Edit2 className="h-3 w-3 text-[#85888C]" />
+                <Edit2 className="h-3.5 w-3.5 text-slate-400" />
                 Renomear
               </button>
 
-              <div className="h-[1px] bg-[#242628] my-0.5" />
+              <div className="h-[1px] bg-slate-100 my-1" />
 
               <button
                 onClick={handleDelete}
-                className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs font-sans text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors text-left cursor-pointer"
+                className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-sans text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="h-3.5 w-3.5" />
                 Excluir
               </button>
             </div>
@@ -136,34 +136,36 @@ export function NotebookCard({ notebook, index }: NotebookCardProps) {
       </div>
 
       {/* Middle: Title */}
-      <div className="my-2">
+      <div className="my-2.5">
         {isEditing ? (
           <form onSubmit={handleRename} onClick={(e) => e.stopPropagation()}>
             <input
+              id={`notebook-rename-${notebook.id}`}
+              name="rename"
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onBlur={handleRename}
               autoFocus
-              className="w-full bg-[#0C0D0E] text-xs font-sans text-[#E3E3E3] px-2 py-1 rounded border border-[#383B40] focus:outline-none"
+              className="w-full bg-slate-50 text-xs font-semibold text-slate-800 px-2 py-1 rounded-lg border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
           </form>
         ) : (
-          <h3 className="text-sm font-medium text-[#E3E3E3] group-hover:text-white line-clamp-2 leading-snug">
+          <h3 className="text-sm font-semibold text-slate-800 group-hover:text-emerald-700 line-clamp-2 leading-snug">
             {notebook.title}
           </h3>
         )}
       </div>
 
       {/* Bottom Footer: Sources Count & Activity */}
-      <div className="flex items-center justify-between text-[10px] font-mono text-[#85888C] pt-2.5 border-t border-[#242628]/60">
+      <div className="flex items-center justify-between text-xs font-sans text-slate-500 pt-2.5 border-t border-slate-100">
         <span>
           {notebook.source_count}{" "}
           {notebook.source_count === 1 ? "fonte indexada" : "fontes indexadas"}
         </span>
-        <div className="flex items-center gap-1 text-[#85888C] group-hover:text-[#E3E3E3] transition-colors">
-          <span>Acessar</span>
-          <ArrowRight className="h-3 w-3" />
+        <div className="flex items-center gap-1 font-medium text-slate-600 group-hover:text-emerald-600 transition-colors">
+          <span>Abrir</span>
+          <ArrowRight className="h-3.5 w-3.5" />
         </div>
       </div>
     </div>
@@ -175,17 +177,17 @@ export function CreateNotebookCard({ onClick }: { onClick: () => void }) {
   return (
     <div
       onClick={onClick}
-      className="group flex flex-col items-center justify-center rounded border border-dashed border-[#242628] bg-[#0C0D0E] hover:bg-[#161719] hover:border-[#383B40] p-6 text-center transition-all cursor-pointer min-h-[160px] select-none"
+      className="group flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 hover:border-emerald-300 bg-slate-50/60 hover:bg-emerald-50/30 p-6 text-center transition-all cursor-pointer min-h-[165px] select-none active:scale-[0.98]"
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded bg-[#161719] border border-[#242628] text-[#85888C] group-hover:text-[#E3E3E3] group-hover:border-[#383B40] transition-colors mb-2.5">
-        <Plus className="h-4 w-4" />
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 group-hover:text-emerald-600 group-hover:border-emerald-200 group-hover:scale-105 transition-all mb-2.5 shadow-2xs">
+        <Plus className="h-5 w-5" />
       </div>
 
-      <h3 className="text-xs font-medium text-[#E3E3E3] group-hover:text-white transition-colors">
-        Criar Novo Caderno de Pesquisa
+      <h3 className="text-xs font-semibold text-slate-700 group-hover:text-emerald-800 transition-colors">
+        Criar Novo Caderno
       </h3>
-      <p className="text-[10px] font-mono text-[#85888C] mt-1">
-        [Novo Espaço de Evidências]
+      <p className="text-[11px] font-sans text-slate-400 mt-1">
+        Novo espaço para análise e síntese
       </p>
     </div>
   );

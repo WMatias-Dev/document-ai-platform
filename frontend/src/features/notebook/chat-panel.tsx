@@ -185,7 +185,7 @@ export function ChatPanel() {
             notebook_id: isUUID ? activeNotebookId : null,
             source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
             history: historyPayload,
-            max_chunks: 5,
+            max_chunks: 25,
           }),
         });
 
@@ -303,6 +303,15 @@ export function ChatPanel() {
     ]
   );
 
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const handleCopyMessage = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(idx);
+    toast.success("Mensagem copiada!");
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || isStreaming) return;
@@ -322,51 +331,76 @@ export function ChatPanel() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0C0D0E] h-full overflow-hidden border-r border-[#242628]">
-      {/* 1. Header do Painel Central */}
-      <div className="h-10 border-b border-[#242628] px-4 flex items-center justify-between shrink-0 bg-[#0C0D0E]">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-[#85888C]">
-            Dossiê de Pesquisa & Chat
-          </span>
-          {isStreaming && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#D97706] bg-[#D97706]/10 px-2 py-0.5 rounded border border-[#D97706]/20 animate-pulse">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
-              Gerando Resposta...
+    <div className="flex-1 flex flex-col h-full bg-slate-100/60 min-w-0 select-text">
+      {/* 1. Header do Chat (Estilo Mensageiro Moderno) */}
+      <div className="h-14 border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs z-10">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-xs">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-white" />
             </span>
-          )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs sm:text-sm font-semibold text-slate-800">
+                Assistente Documental
+              </h2>
+              {isStreaming && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-sans font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  digitando...
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 flex items-center gap-1">
+              <span>{completedDocs.length} fonte(s) ativa(s)</span>
+              {selectedSourceIds.length > 0 && (
+                <span className="text-emerald-700 font-medium">
+                  • {selectedSourceIds.length} selecionada(s)
+                </span>
+              )}
+            </p>
+          </div>
         </div>
 
-        {messages.length > 0 && (
-          <button
-            onClick={handleClearHistory}
-            className="flex items-center gap-1 text-[11px] font-mono text-[#85888C] hover:text-[#EF4444] transition-colors cursor-pointer"
-            title="Limpar histórico deste caderno"
-          >
-            <Trash2 className="h-3 w-3" />
-            <span>Limpar Histórico</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              onClick={handleClearHistory}
+              disabled={isStreaming}
+              className="flex items-center gap-1.5 text-xs font-sans text-slate-400 hover:text-red-600 hover:bg-red-50/70 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+              title="Limpar histórico de conversa"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Limpar Chat</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 2. Área de Conteúdo / Diálogo */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+      {/* 2. Área de Mensagens (Bate-papo com Balões) */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         {messages.length === 0 ? (
-          /* Estado Vazio com Catálogo Universal de Tarefas Rápidas (NotebookLM Style) */
-          <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-6 py-8">
+          /* Estado Vazio de Início de Conversa */
+          <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto space-y-6 py-6">
             <div className="space-y-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#161719] border border-[#242628] mx-auto text-[#D97706]">
-                <BookmarkCheck className="h-5 w-5" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white mx-auto shadow-md shadow-emerald-500/20">
+                <Sparkles className="h-7 w-7" />
               </div>
-              <h3 className="text-base font-sans font-medium text-[#E3E3E3]">
-                Assistente de Análise Documental
+              <h3 className="text-base sm:text-lg font-semibold text-slate-800">
+                Como posso ajudar na sua pesquisa hoje?
               </h3>
-              <p className="text-xs font-serif text-[#85888C] max-w-md mx-auto leading-relaxed">
-                Faça perguntas em linguagem natural ou execute uma tarefa de síntese com embasamento rigoroso nas fontes indexadas.
+              <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                Faça perguntas diretas sobre os documentos ou escolha uma das ações rápidas abaixo:
               </p>
             </div>
 
-            {/* Grid 2x3 de Tarefas Prontas Universais */}
+            {/* Sugestões Rápidas em Chips */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
               {UNIVERSAL_QUICK_TASKS.map((task) => {
                 const Icon = task.icon;
@@ -375,17 +409,16 @@ export function ChatPanel() {
                     key={task.id}
                     onClick={() => handlePromptSuggestion(task.prompt)}
                     disabled={isStreaming}
-                    className="flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#1C1D20] hover:border-[#383B40] p-3 transition-all cursor-pointer group disabled:opacity-50"
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-xs p-3 transition-all cursor-pointer group disabled:opacity-50 text-left"
                   >
-                    <Icon className="h-3.5 w-3.5 text-[#85888C] shrink-0 mt-0.5 group-hover:text-[#E3E3E3]" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 shrink-0">
+                      <Icon className="h-4 w-4" />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
-                        <span>{task.title}</span>
-                        <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
-                          ↵
-                        </span>
+                      <h4 className="text-xs font-semibold text-slate-700 group-hover:text-emerald-800 truncate">
+                        {task.title}
                       </h4>
-                      <p className="text-[10px] font-mono text-[#85888C] mt-0.5 line-clamp-2">
+                      <p className="text-[11px] text-slate-400 group-hover:text-slate-500 truncate">
                         {task.subtitle}
                       </p>
                     </div>
@@ -395,19 +428,19 @@ export function ChatPanel() {
             </div>
 
             {completedDocs.length === 0 && (
-              <div className="rounded border border-dashed border-[#242628] bg-[#161719]/40 p-3 max-w-sm text-xs font-sans text-[#85888C]">
-                Nenhum documento vinculado a este caderno.{" "}
+              <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/60 p-3 max-w-sm text-xs text-emerald-800">
+                Nenhum arquivo anexado a este caderno.{" "}
                 <button
                   onClick={() => setAddSourceModalOpen(true)}
-                  className="text-[#E3E3E3] underline font-medium hover:text-white cursor-pointer ml-1"
+                  className="text-emerald-700 font-semibold underline hover:text-emerald-900 cursor-pointer ml-1"
                 >
-                  Anexar arquivo PDF
+                  Anexar PDF agora
                 </button>
               </div>
             )}
           </div>
         ) : (
-          /* Entradas do Dossiê Contínuo */
+          /* Lista de Balões de Conversa */
           messages.map((msg, index) => {
             const isUser = msg.role === "user";
             const isLatestAssistant =
@@ -417,50 +450,15 @@ export function ChatPanel() {
               return (
                 <div
                   key={msg.id || index}
-                  className="max-w-3xl mx-auto border-b border-[#242628] pb-3 pt-2"
+                  className="flex justify-end items-end gap-2 max-w-2xl ml-auto"
                 >
-                  <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-[#85888C]">
-                    <Search className="h-3 w-3 text-[#D97706]" />
-                    <span>Consulta Documental</span>
-                  </div>
-                  <h3 className="text-sm font-sans font-medium text-[#E3E3E3] mt-1.5 leading-snug">
-                    {msg.content}
-                  </h3>
-                </div>
-              );
-            }
-
-            return (
-              <div
-                key={msg.id || index}
-                className="max-w-3xl mx-auto space-y-4 rounded border border-[#242628] bg-[#161719] p-6 shadow-sm"
-              >
-                {/* Memo Header */}
-                <div className="flex items-center justify-between border-b border-[#242628] pb-3 text-[10px] font-mono text-[#85888C]">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-3 w-3 text-[#D97706]" />
-                    <span className="uppercase tracking-widest text-[#85888C]">
-                      Parecer de Análise Sintetizada
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {msg.model && (
-                      <span className="text-[10px] font-mono text-[#55585D] hidden sm:inline">
-                        {msg.model}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => {
-                        appendNoteToNotebook(activeNotebookId, msg.content);
-                        toast.success("Parecer adicionado ao Caderno de Notas!");
-                      }}
-                      className="inline-flex items-center gap-1 rounded bg-[#242628] hover:bg-[#383B40] hover:text-[#D97706] px-1.5 py-0.5 text-[10px] font-mono text-[#E3E3E3] transition-colors cursor-pointer"
-                      title="Copiar parecer diretamente para as Notas de Síntese"
-                    >
-                      <FileEdit className="h-2.5 w-2.5" />
-                      <span>+ Nota</span>
-                    </button>
-                    <span className="text-[#55585D]">
+                  <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%]">
+                    <div className="bg-emerald-600 text-white rounded-2xl rounded-br-xs px-4 py-3 shadow-xs">
+                      <p className="text-xs sm:text-sm font-sans whitespace-pre-wrap leading-relaxed">
+                        {msg.content}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 px-1">
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString("pt-BR", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -468,60 +466,122 @@ export function ChatPanel() {
                     </span>
                   </div>
                 </div>
+              );
+            }
 
-                {/* Editorial Body (Source Serif 4) com cursor de streaming pulsante */}
-                <div className="font-serif text-sm text-[#E3E3E3] leading-relaxed space-y-3 prose prose-invert max-w-none">
-                  {msg.content ? (
-                    <>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content}
-                      </ReactMarkdown>
-                      {isLatestAssistant && (
-                        <span className="inline-block animate-pulse text-[#D97706] font-mono ml-0.5 text-base">
-                          ▍
-                        </span>
-                      )}
-                    </>
-                  ) : isLatestAssistant ? (
-                    <div className="flex items-center gap-2 text-xs font-mono text-[#85888C] py-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D97706]" />
-                      <span>Consultando evidências nos documentos...</span>
-                    </div>
-                  ) : null}
+            return (
+              <div
+                key={msg.id || index}
+                className="flex items-start gap-2.5 max-w-3xl mr-auto"
+              >
+                {/* Avatar do Assistente */}
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shrink-0 shadow-2xs mt-0.5">
+                  <Sparkles className="h-4 w-4" />
                 </div>
 
-                {/* Academic Footnotes & Citations Table */}
-                {msg.citations && msg.citations.length > 0 && (
-                  <div className="mt-5 pt-3.5 border-t border-[#242628] space-y-2">
-                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
-                      <span>Evidências e Fontes Citadas</span>
-                      <span>[{msg.citations.length} Referências]</span>
+                {/* Balão do Assistente */}
+                <div className="flex-1 min-w-0 max-w-[92%] sm:max-w-[85%]">
+                  <div className="bg-white border border-slate-200/90 rounded-2xl rounded-tl-xs px-4 sm:px-5 py-3.5 shadow-xs space-y-3">
+                    {/* Header do Balão com Ações */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] text-slate-400">
+                      <span className="font-semibold text-slate-700">
+                        Assistente Documental
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {msg.model && (
+                          <span className="font-mono text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                            {msg.model}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleCopyMessage(msg.content, index)}
+                          className="hover:text-slate-700 p-1 rounded transition-colors cursor-pointer"
+                          title="Copiar resposta"
+                        >
+                          {copiedIndex === index ? (
+                            <span className="text-emerald-600 font-medium">Copiado!</span>
+                          ) : (
+                            <FileEdit className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            appendNoteToNotebook(activeNotebookId, msg.content);
+                            toast.success("Adicionado ao Caderno de Notas!");
+                          }}
+                          className="hover:text-emerald-700 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer border border-emerald-200/50"
+                          title="Salvar como Nota de Síntese"
+                        >
+                          + Nota
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {msg.citations.map((cite, idx) => (
-                        <button
-                          key={cite.chunk_id || idx}
-                          onClick={() => openCitationInStudio(cite)}
-                          title="Inspecionar trecho original no painel lateral de evidências"
-                          className="flex items-center justify-between rounded border border-[#242628] bg-[#0C0D0E] hover:bg-[#222427] hover:border-[#383B40] px-2.5 py-1.5 text-left transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-[10px] font-mono font-semibold text-[#D97706]">
-                              [{idx + 1}]
+                    {/* Conteúdo Markdown da Resposta */}
+                    <div className="text-xs sm:text-sm text-slate-800 leading-relaxed space-y-2.5 font-sans prose prose-slate max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5">
+                      {msg.content ? (
+                        <>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                          {isLatestAssistant && (
+                            <span className="inline-block animate-pulse text-emerald-600 font-mono ml-1 text-sm">
+                              ▍
                             </span>
-                            <span className="text-xs font-sans font-medium text-[#E3E3E3] truncate max-w-[140px]">
-                              {cite.document_title}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-mono text-[#85888C]">
-                            p.{cite.chunk_index}
-                          </span>
-                        </button>
-                      ))}
+                          )}
+                        </>
+                      ) : isLatestAssistant ? (
+                        /* Indicador de Digitação (Typing Dots) */
+                        <div className="flex items-center gap-1.5 py-2 px-1">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-bounce" />
+                          <span className="text-xs text-slate-400 ml-2">Consultando documentos...</span>
+                        </div>
+                      ) : null}
                     </div>
+
+                    {/* Pills de Citações / Fontes */}
+                    {msg.citations && msg.citations.length > 0 && (
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-medium text-slate-400">
+                          <span>Fontes consultadas</span>
+                          <span className="font-mono text-emerald-700 text-[10px] bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                            {msg.citations.length} trecho(s)
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {msg.citations.map((cite, idx) => (
+                            <button
+                              key={cite.chunk_id || idx}
+                              onClick={() => openCitationInStudio(cite)}
+                              title={`Abrir página ${cite.page_number || cite.chunk_index} de ${cite.document_title}`}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 px-2 py-1 text-[11px] text-slate-700 hover:text-emerald-900 transition-all cursor-pointer shadow-2xs group"
+                            >
+                              <span className="font-mono font-bold text-emerald-600 text-[10px]">
+                                #{idx + 1}
+                              </span>
+                              <span className="truncate max-w-[120px] sm:max-w-[160px] font-medium">
+                                {cite.document_title}
+                              </span>
+                              <span className="text-[10px] text-slate-400 group-hover:text-emerald-700 font-mono">
+                                p.{cite.page_number || cite.chunk_index}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  <span className="text-[10px] text-slate-400 mt-1 block px-1">
+                    {new Date(msg.createdAt || Date.now()).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
               </div>
             );
           })
@@ -529,20 +589,24 @@ export function ChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 3. Barra Inferior de Entrada Fixa */}
-      <div className="p-4 border-t border-[#242628] bg-[#0C0D0E] shrink-0">
+      {/* 3. Barra de Entrada Fixa (Input de Bate-Papo Moderno) */}
+      <div className="p-3 sm:p-4 border-t border-slate-200/80 bg-white/95 backdrop-blur-md shrink-0 shadow-lg shadow-slate-200/50">
         <div className="max-w-3xl mx-auto space-y-2">
           {selectedSourceIds.length > 0 && (
-            <div className="flex items-center gap-2 text-[10px] font-mono text-[#D97706] bg-[#D97706]/10 px-2 py-0.5 rounded border border-[#D97706]/20">
-              <span>Filtrando estritamente em {selectedSourceIds.length} fonte(s) selecionada(s)</span>
+            <div className="flex items-center gap-2 text-xs text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60">
+              <span className="font-medium">
+                Filtrando em {selectedSourceIds.length} documento(s) selecionado(s)
+              </span>
             </div>
           )}
 
           <form
             onSubmit={handleSubmit}
-            className="relative flex items-center rounded-lg border border-[#242628] bg-[#161719] focus-within:border-[#383B40] transition-colors shadow-sm"
+            className="relative flex items-center rounded-2xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs"
           >
             <textarea
+              id="chat-prompt-input"
+              name="prompt"
               rows={1}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -554,31 +618,32 @@ export function ChatPanel() {
               }}
               placeholder={
                 completedDocs.length === 0
-                  ? "Anexe documentos ao caderno para habilitar a consulta..."
-                  : "Pergunte sobre os documentos ou solicite uma análise estruturada..."
+                  ? "Anexe documentos ao caderno para conversar..."
+                  : "Digite uma mensagem ou faça uma pergunta sobre os documentos..."
               }
               disabled={isStreaming}
-              className="w-full resize-none bg-transparent px-3.5 py-3 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none font-sans max-h-32"
+              className="w-full resize-none bg-transparent px-4 py-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none font-sans max-h-32 leading-relaxed"
             />
 
             <div className="flex items-center gap-1.5 pr-2.5">
               <button
                 type="submit"
                 disabled={!inputText.trim() || isStreaming}
-                className="flex h-7 w-7 items-center justify-center rounded bg-[#E3E3E3] hover:bg-white text-[#0C0D0E] transition-colors disabled:opacity-40 disabled:hover:bg-[#E3E3E3] cursor-pointer"
-                title="Enviar consulta (Enter)"
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-xs disabled:opacity-40 disabled:hover:bg-emerald-600 cursor-pointer active:scale-95"
+                title="Enviar mensagem (Enter)"
               >
                 {isStreaming ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <CornerDownLeft className="h-3.5 w-3.5" />
+                  <CornerDownLeft className="h-4 w-4" />
                 )}
               </button>
             </div>
           </form>
-          <div className="flex items-center justify-between text-[10px] font-mono text-[#55585D] px-1">
-            <span>Enter para enviar • Shift + Enter para quebra de linha</span>
-            <span>RAG com busca vetorial pgvector & Gemini 3.5</span>
+
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 px-1">
+            <span>Pressione <strong className="font-semibold text-slate-500">Enter</strong> para enviar • <strong className="font-semibold text-slate-500">Shift + Enter</strong> para nova linha</span>
+            <span className="hidden sm:inline">RAG com 25 chunks & pgvector</span>
           </div>
         </div>
       </div>
