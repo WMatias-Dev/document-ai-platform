@@ -8,10 +8,8 @@ import { useChatStore } from "@/stores/useChatStore";
 import {
   ArrowLeft,
   Share2,
-  Settings,
   LogOut,
   CheckCircle2,
-  FolderOpen,
 } from "lucide-react";
 
 export function NotebookHeader() {
@@ -34,29 +32,31 @@ export function NotebookHeader() {
   };
 
   return (
-    <header className="h-12 w-full border-b border-[#242628] bg-[#0C0D0E] px-4 flex items-center justify-between shrink-0 select-none z-30">
+    <header className="h-12 w-full border-b border-slate-200/80 bg-white px-4 flex items-center justify-between shrink-0 select-none z-30 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
       {/* Left: Back Link & Editable Title */}
       <div className="flex items-center gap-2.5">
         <Link
           href="/"
-          title="Voltar ao acervo"
-          className="flex h-7 w-7 items-center justify-center rounded bg-[#161719] border border-[#242628] text-[#85888C] hover:text-[#E3E3E3] hover:border-[#383B40] transition-colors"
+          title="Voltar ao catálogo de cadernos"
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 border border-slate-200 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 transition-all active:scale-[0.98]"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
         </Link>
 
-        <span className="h-3 w-[1px] bg-[#242628]" />
+        <span className="h-3.5 w-[1px] bg-slate-200" />
 
         <div className="flex items-center gap-2">
           {isEditingTitle ? (
             <input
+              id="notebook-inline-title"
+              name="notebook-title"
               type="text"
               value={tempTitle}
               onChange={(e) => setTempTitle(e.target.value)}
               onBlur={handleTitleSubmit}
               onKeyDown={(e) => e.key === "Enter" && handleTitleSubmit()}
               autoFocus
-              className="bg-[#161719] text-xs font-medium text-[#E3E3E3] px-2 py-0.5 rounded border border-[#383B40] focus:outline-none"
+              className="bg-slate-50 text-xs font-semibold text-slate-800 px-2 py-0.5 rounded-lg border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
           ) : (
             <h1
@@ -65,14 +65,14 @@ export function NotebookHeader() {
                 setIsEditingTitle(true);
               }}
               title="Clique para renomear"
-              className="text-xs font-medium text-[#E3E3E3] hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#161719] transition-colors max-w-[220px] sm:max-w-md truncate"
+              className="text-xs font-semibold text-slate-800 hover:text-emerald-700 cursor-pointer px-1.5 py-0.5 rounded-md hover:bg-slate-100/80 transition-colors max-w-[220px] sm:max-w-md truncate"
             >
               {notebookTitle}
             </h1>
           )}
 
-          <span className="hidden sm:inline-flex items-center gap-1 rounded bg-[#161719] border border-[#242628] px-2 py-0.5 text-[10px] font-mono text-[#85888C]">
-            <CheckCircle2 className="h-2.5 w-2.5 text-[#10B981]" />
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 text-[10px] font-mono text-emerald-700">
+            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
             {selectedSourceIds.length > 0
               ? `${selectedSourceIds.length} ${
                   selectedSourceIds.length === 1 ? "fonte ativa" : "fontes ativas"
@@ -86,20 +86,20 @@ export function NotebookHeader() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => alert("Link de compartilhamento de dossiê copiado.")}
-          className="hidden sm:inline-flex items-center gap-1 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] px-2.5 py-1 text-[11px] font-sans text-[#85888C] hover:text-[#E3E3E3] transition-colors cursor-pointer"
+          className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-2.5 py-1 text-[11px] font-sans font-medium text-slate-600 hover:text-slate-900 transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
         >
-          <Share2 className="h-3 w-3" />
+          <Share2 className="h-3.5 w-3.5 text-slate-500" />
           <span>Exportar Dossiê</span>
         </button>
 
-        <span className="h-3 w-[1px] bg-[#242628] mx-0.5 hidden sm:block" />
+        <span className="h-3.5 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
 
         <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1.5 rounded border border-[#242628] bg-[#161719] px-2 py-0.5 text-xs text-[#E3E3E3]">
-            <div className="h-3.5 w-3.5 rounded-sm bg-[#242628] flex items-center justify-center text-[9px] font-mono font-medium text-[#E3E3E3] uppercase">
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">
+            <div className="h-4 w-4 rounded-md bg-emerald-600 flex items-center justify-center text-[9px] font-mono font-bold text-white uppercase">
               {user?.name ? user.name[0] : "U"}
             </div>
-            <span className="max-w-[100px] truncate text-[11px] font-mono text-[#85888C] hidden md:inline">
+            <span className="max-w-[120px] truncate text-[11px] font-sans font-medium text-slate-600 hidden md:inline">
               {user?.email || user?.name}
             </span>
           </div>
@@ -107,7 +107,7 @@ export function NotebookHeader() {
           <button
             onClick={handleLogout}
             title="Encerrar sessão"
-            className="rounded p-1 text-[#85888C] hover:text-[#EF4444] hover:bg-[#161719] transition-colors cursor-pointer"
+            className="rounded-lg p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />
           </button>

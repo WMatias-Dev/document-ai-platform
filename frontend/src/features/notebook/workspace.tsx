@@ -49,19 +49,19 @@ export function NotebookWorkspace() {
   }, [notebookDetail?.title, setNotebookTitle]);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0C0D0E] overflow-hidden">
-      {/* 1. Header Minimalista */}
+    <div className="h-screen w-screen flex flex-col bg-slate-50 text-slate-800 overflow-hidden selection:bg-emerald-100 selection:text-emerald-800">
+      {/* 1. Header do Caderno */}
       <NotebookHeader />
 
-      {/* 2. Layout de 3 Colunas de Bancada */}
+      {/* 2. Layout Tripartite de Bancada */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Coluna Esquerda: Fontes em Custódia */}
+        {/* Coluna 1 (Esquerda): Fontes do Caderno */}
         <SourcesPanel />
 
-        {/* Coluna Central: Dossiê / Consulta RAG */}
+        {/* Coluna 2 (Centro): Chat RAG & Citações */}
         <ChatPanel />
 
-        {/* Coluna Direita: Inspetor de Evidências */}
+        {/* Coluna 3 (Direita): Studio (Notas / PDF Highlighter / Tarefas / Busca) */}
         <StudioPanel />
       </div>
 

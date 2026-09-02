@@ -55,103 +55,103 @@ export function PDFHighlighter({
 
   return (
     <div
-      className={`rounded-lg border border-[#242628] bg-[#161719] overflow-hidden flex flex-col transition-all duration-200 ${
+      className={`rounded-2xl border border-slate-200/90 bg-white overflow-hidden flex flex-col transition-all duration-200 shadow-xs ${
         isFullscreen
-          ? "fixed inset-4 z-50 bg-[#0C0D0E]/95 backdrop-blur-md shadow-2xl border-[#383B40]"
+          ? "fixed inset-4 z-50 bg-white/95 backdrop-blur-md shadow-2xl border-slate-300"
           : "w-full h-[420px]"
       }`}
     >
       {/* Top Toolbar */}
-      <div className="p-2 border-b border-[#242628] bg-[#1C1D20] flex items-center justify-between gap-2 text-xs">
+      <div className="p-2.5 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-1.5 min-w-0">
-          <FileText className="h-3.5 w-3.5 text-[#D97706] shrink-0" />
-          <span className="font-sans font-medium text-[#E3E3E3] truncate text-[11px]">
+          <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span className="font-medium text-slate-800 truncate text-xs">
             {documentTitle}
           </span>
         </div>
 
         {/* Controles de Navegação */}
-        <div className="flex items-center gap-1 shrink-0">
-          <div className="flex items-center rounded border border-[#242628] bg-[#0C0D0E] px-1 py-0.5 text-[10px] font-mono text-[#E3E3E3]">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700 shadow-2xs">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
-              className="p-0.5 hover:text-[#D97706] disabled:opacity-30 cursor-pointer"
+              className="p-0.5 hover:text-emerald-700 disabled:opacity-30 cursor-pointer"
               title="Página Anterior"
             >
-              <ChevronLeft className="h-3 w-3" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </button>
-            <span className="px-1 text-[#85888C]">Pág. {currentPage}</span>
+            <span className="px-1 text-[11px] font-mono text-slate-500">Pág. {currentPage}</span>
             <button
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="p-0.5 hover:text-[#D97706] cursor-pointer"
+              className="p-0.5 hover:text-emerald-700 cursor-pointer"
               title="Próxima Página"
             >
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
 
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setZoom((z) => Math.max(50, z - 15))}
-              className="p-1 rounded hover:bg-[#242628] text-[#85888C] hover:text-[#E3E3E3] cursor-pointer"
+              className="p-1 rounded-md hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 cursor-pointer"
               title="Reduzir Zoom"
             >
-              <ZoomOut className="h-3 w-3" />
+              <ZoomOut className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => setZoom((z) => Math.min(150, z + 15))}
-              className="p-1 rounded hover:bg-[#242628] text-[#85888C] hover:text-[#E3E3E3] cursor-pointer"
+              className="p-1 rounded-md hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 cursor-pointer"
               title="Aumentar Zoom"
             >
-              <ZoomIn className="h-3 w-3" />
+              <ZoomIn className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => setIsFullscreen((f) => !f)}
-              className="p-1 rounded hover:bg-[#242628] text-[#85888C] hover:text-[#E3E3E3] cursor-pointer"
+              className="p-1 rounded-md hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 cursor-pointer"
               title={isFullscreen ? "Restaurar" : "Tela Cheia"}
             >
               {isFullscreen ? (
-                <Minimize2 className="h-3 w-3" />
+                <Minimize2 className="h-3.5 w-3.5" />
               ) : (
-                <Maximize2 className="h-3 w-3" />
+                <Maximize2 className="h-3.5 w-3.5" />
               )}
             </button>
             <a
               href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1 rounded hover:bg-[#242628] text-[#85888C] hover:text-[#E3E3E3]"
+              className="p-1 rounded-md hover:bg-slate-200/60 text-slate-500 hover:text-slate-900"
               title="Abrir em Nova Aba"
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </div>
       </div>
 
       {/* Selector de Modo */}
-      <div className="flex items-center justify-between px-2.5 py-1 border-b border-[#242628] bg-[#161719]/60 text-[10px] font-mono">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-white text-xs">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setViewMode("highlight")}
-            className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+            className={`px-2.5 py-0.5 rounded-lg transition-colors cursor-pointer text-xs ${
               viewMode === "highlight"
-                ? "bg-[#D97706]/20 text-[#FDE68A] border border-[#D97706]/40 font-medium"
-                : "text-[#85888C] hover:text-[#E3E3E3]"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold"
+                : "text-slate-500 hover:text-slate-900"
             }`}
           >
             <span className="inline-flex items-center gap-1">
-              <Sparkles className="h-2.5 w-2.5 text-[#D97706]" />
+              <Sparkles className="h-3 w-3 text-emerald-600" />
               Evidência Marcada
             </span>
           </button>
           <button
             onClick={() => setViewMode("raw")}
-            className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+            className={`px-2.5 py-0.5 rounded-lg transition-colors cursor-pointer text-xs ${
               viewMode === "raw"
-                ? "bg-[#242628] text-[#E3E3E3] font-medium"
-                : "text-[#85888C] hover:text-[#E3E3E3]"
+                ? "bg-slate-100 text-slate-800 font-medium"
+                : "text-slate-500 hover:text-slate-900"
             }`}
           >
             PDF Completo
@@ -159,14 +159,14 @@ export function PDFHighlighter({
         </div>
 
         {hasBBox && (
-          <span className="text-[#85888C] text-[9px]">
+          <span className="text-slate-400 text-[11px] font-sans">
             Coordenadas rastreadas
           </span>
         )}
       </div>
 
       {/* Canvas / PDF Viewport com Bounding Box Overlay */}
-      <div className="flex-1 relative bg-[#0C0D0E] overflow-auto flex items-center justify-center p-2">
+      <div className="flex-1 relative bg-slate-100/60 overflow-auto flex items-center justify-center p-2">
         <div
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
           className="relative w-full h-full min-h-[300px] flex items-center justify-center transition-transform duration-100"
@@ -174,7 +174,7 @@ export function PDFHighlighter({
           {/* Iframe PDF Viewer nativo */}
           <iframe
             src={`${pdfUrl}&toolbar=0&navpanes=0`}
-            className="w-full h-full rounded border-0 bg-[#161719]"
+            className="w-full h-full rounded-xl border border-slate-200 bg-white"
             title={documentTitle}
           />
 
@@ -182,9 +182,9 @@ export function PDFHighlighter({
           {viewMode === "highlight" && hasBBox && (
             <div
               style={boxStyle}
-              className="absolute pointer-events-none rounded border-2 border-[#D97706] bg-[#D97706]/20 shadow-[0_0_15px_rgba(217,119,6,0.45)] animate-pulse z-10"
+              className="absolute pointer-events-none rounded-lg border-2 border-emerald-500 bg-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse z-10"
             >
-              <div className="absolute -top-4 left-0 bg-[#D97706] text-[#0C0D0E] text-[8px] font-mono px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+              <div className="absolute -top-4.5 left-0 bg-emerald-600 text-white text-[9px] font-mono px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider shadow-xs">
                 Evidência #p.{currentPage}
               </div>
             </div>
@@ -194,7 +194,7 @@ export function PDFHighlighter({
 
       {/* Snippet Footer */}
       {snippetText && (
-        <div className="p-2 border-t border-[#242628] bg-[#161719] text-[11px] font-serif text-[#FDE68A] italic line-clamp-2">
+        <div className="p-2.5 border-t border-slate-100 bg-emerald-50/40 text-xs font-serif text-emerald-950 italic line-clamp-2">
           "{snippetText}"
         </div>
       )}

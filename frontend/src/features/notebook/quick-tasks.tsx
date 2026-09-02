@@ -10,6 +10,7 @@ import {
   Sparkles,
   Loader2,
   LucideIcon,
+  ArrowRight,
 } from "lucide-react";
 
 export interface QuickTaskItem {
@@ -83,7 +84,7 @@ export function QuickTasks({
   isDisabled,
 }: QuickTasksProps) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {UNIVERSAL_QUICK_TASKS.map((task) => {
         const Icon = task.icon;
         const isRunning = runningTaskId === task.id;
@@ -93,25 +94,27 @@ export function QuickTasks({
             key={task.id}
             onClick={() => onExecuteTask(task.id, task.prompt)}
             disabled={isDisabled}
-            className={`w-full flex items-start gap-2.5 rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] hover:border-[#383B40] p-2.5 text-left transition-colors cursor-pointer group ${
-              isRunning ? "border-[#D97706] bg-[#1C1D20]" : ""
+            className={`w-full flex items-start gap-2.5 rounded-xl border border-slate-200/90 bg-white hover:border-emerald-300 hover:shadow-sm p-3 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.98] ${
+              isRunning ? "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500/20" : ""
             } disabled:opacity-60 disabled:cursor-not-allowed`}
           >
             <div className="mt-0.5 shrink-0">
               {isRunning ? (
-                <Loader2 className="h-3.5 w-3.5 text-[#D97706] animate-spin" />
+                <Loader2 className="h-4 w-4 text-emerald-600 animate-spin" />
               ) : (
-                <Icon className="h-3.5 w-3.5 text-[#85888C] group-hover:text-[#E3E3E3]" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100">
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-xs font-sans font-medium text-[#E3E3E3] group-hover:text-white flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-slate-800 group-hover:text-emerald-800 flex items-center justify-between">
                 <span>{task.title}</span>
-                <span className="text-[10px] font-mono text-[#85888C] group-hover:text-[#E3E3E3]">
-                  [Executar ↵]
+                <span className="text-[10px] font-mono text-slate-400 group-hover:text-emerald-600">
+                  Executar ↵
                 </span>
               </h4>
-              <p className="text-[10px] font-mono text-[#85888C] mt-0.5 leading-tight">
+              <p className="text-[11px] font-sans text-slate-500 mt-0.5 leading-snug">
                 {task.subtitle}
               </p>
             </div>

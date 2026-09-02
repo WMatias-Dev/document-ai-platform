@@ -12,7 +12,7 @@ import {
   Square,
   Loader2,
   FileText,
-  FilePlus2,
+  FileCheck2,
 } from "lucide-react";
 
 export function SourcesPanel() {
@@ -80,24 +80,24 @@ export function SourcesPanel() {
   };
 
   return (
-    <aside className="w-72 h-full border-r border-[#242628] bg-[#0C0D0E] flex flex-col shrink-0 select-none">
+    <aside className="w-72 h-full border-r border-slate-200/80 bg-slate-50/60 flex flex-col shrink-0 select-none">
       {/* Top Header */}
-      <div className="p-3 border-b border-[#242628] space-y-2">
+      <div className="p-3.5 border-b border-slate-200/80 space-y-2 bg-white/70">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-[#85888C]">
+            <span className="text-xs font-semibold text-slate-800">
               Fontes em Custódia
             </span>
-            <span className="text-[10px] font-mono text-[#55585D]">
-              [{documents.length}]
+            <span className="text-[11px] font-mono font-medium text-slate-400">
+              ({documents.length})
             </span>
           </div>
 
           <button
             onClick={() => setAddSourceModalOpen(true)}
-            className="inline-flex items-center gap-1 rounded bg-[#161719] hover:bg-[#222427] text-[#E3E3E3] border border-[#242628] hover:border-[#383B40] px-2 py-1 text-[11px] font-sans transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-medium transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
             <span>Anexar PDF</span>
           </button>
         </div>
@@ -106,19 +106,19 @@ export function SourcesPanel() {
         {completedDocs.length > 0 && (
           <div
             onClick={handleToggleAll}
-            className="flex items-center justify-between rounded bg-[#161719]/40 hover:bg-[#161719] px-2 py-1.5 text-xs text-[#85888C] hover:text-[#E3E3E3] transition-colors cursor-pointer border border-[#242628]/60"
+            className="flex items-center justify-between rounded-lg bg-slate-100/70 hover:bg-slate-100 px-2.5 py-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors cursor-pointer border border-slate-200/60"
           >
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               {isAllSelected ? (
-                <CheckSquare className="h-3.5 w-3.5 text-[#E3E3E3]" />
+                <CheckSquare className="h-4 w-4 text-emerald-600" />
               ) : (
-                <Square className="h-3.5 w-3.5 text-[#55585D]" />
+                <Square className="h-4 w-4 text-slate-400" />
               )}
-              <span className="text-[11px] font-sans">
+              <span className="text-xs font-medium">
                 Selecionar todas as fontes
               </span>
             </div>
-            <span className="text-[10px] font-mono text-[#55585D]">
+            <span className="text-[10px] font-mono font-medium text-slate-500">
               {selectedSourceIds.length} ativas
             </span>
           </div>
@@ -126,26 +126,26 @@ export function SourcesPanel() {
       </div>
 
       {/* Sources Linear List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center p-8 text-[#85888C]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#85888C] mb-1.5" />
-            <p className="text-[11px] font-mono">Indexando acervo...</p>
+          <div className="flex flex-col items-center justify-center p-8 text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-600 mb-2" />
+            <p className="text-xs font-sans">Carregando acervo...</p>
           </div>
         ) : documents.length === 0 ? (
-          <div className="p-4 text-center rounded border border-dashed border-[#242628] bg-[#161719]/20 mt-3">
-            <FileText className="h-4 w-4 text-[#55585D] mx-auto mb-1.5" />
-            <p className="text-xs font-sans text-[#E3E3E3]">
+          <div className="p-5 text-center rounded-xl border border-dashed border-slate-200 bg-white mt-3">
+            <FileText className="h-5 w-5 text-slate-400 mx-auto mb-2" />
+            <p className="text-xs font-semibold text-slate-700">
               Nenhuma fonte anexada
             </p>
-            <p className="text-[10px] font-mono text-[#85888C] mt-0.5">
-              Anexe PDFs para indexação
+            <p className="text-[11px] font-sans text-slate-400 mt-0.5">
+              Anexe documentos em PDF para ativar a pesquisa RAG
             </p>
             <button
               onClick={() => setAddSourceModalOpen(true)}
-              className="mt-2.5 inline-flex items-center gap-1 rounded bg-[#161719] hover:bg-[#222427] text-[#E3E3E3] border border-[#242628] px-2 py-1 text-[11px] font-sans transition-colors cursor-pointer"
+              className="mt-3 inline-flex items-center gap-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1 text-xs font-medium transition-colors cursor-pointer"
             >
-              <Plus className="h-3 w-3" /> Anexar
+              <Plus className="h-3 w-3" /> Anexar Documento
             </button>
           </div>
         ) : (
@@ -157,41 +157,41 @@ export function SourcesPanel() {
             return (
               <div
                 key={doc.id}
-                className={`group flex items-center justify-between gap-2 rounded px-2.5 py-2 border transition-all ${
+                className={`group flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border transition-all ${
                   isSelected
-                    ? "bg-[#161719] border-[#383B40]"
-                    : "bg-[#0C0D0E] hover:bg-[#161719]/60 border-[#242628]/80"
+                    ? "bg-white border-emerald-300 shadow-2xs ring-1 ring-emerald-500/10"
+                    : "bg-white/80 hover:bg-white border-slate-200/80 hover:border-slate-300"
                 }`}
               >
                 <div
                   onClick={() => isCompleted && toggleSourceSelection(doc.id)}
-                  className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
                 >
                   {isCompleted ? (
                     isSelected ? (
-                      <CheckSquare className="h-3.5 w-3.5 text-[#E3E3E3] shrink-0" />
+                      <CheckSquare className="h-4 w-4 text-emerald-600 shrink-0" />
                     ) : (
-                      <Square className="h-3.5 w-3.5 text-[#55585D] shrink-0 group-hover:text-[#85888C]" />
+                      <Square className="h-4 w-4 text-slate-300 shrink-0 group-hover:text-slate-400" />
                     )
                   ) : (
-                    <Loader2 className="h-3.5 w-3.5 text-[#F59E0B] animate-spin shrink-0" />
+                    <Loader2 className="h-4 w-4 text-amber-500 animate-spin shrink-0" />
                   )}
 
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-sans font-medium text-[#E3E3E3] truncate leading-tight">
+                    <p className="text-xs font-medium text-slate-800 truncate leading-snug">
                       {doc.title}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[#85888C]">
-                      <span>{docCode}</span>
-                      <span>·</span>
+                    <div className="flex items-center gap-1.5 mt-1 text-[10px] font-sans text-slate-400">
+                      <span className="font-mono">{docCode}</span>
+                      <span>•</span>
                       {isCompleted ? (
-                        <span className="text-[#10B981] flex items-center gap-1">
-                          <span className="h-1 w-1 rounded-full bg-[#10B981]" />
+                        <span className="text-emerald-700 font-medium flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                           Pronto
                         </span>
                       ) : (
-                        <span className="text-[#F59E0B] flex items-center gap-1">
-                          <span className="h-1 w-1 rounded-full bg-[#F59E0B] animate-pulse" />
+                        <span className="text-amber-600 font-medium flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                           Indexando
                         </span>
                       )}
@@ -202,9 +202,9 @@ export function SourcesPanel() {
                 <button
                   onClick={() => deleteMutation.mutate(doc.id)}
                   title="Excluir fonte"
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#85888C] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all cursor-pointer"
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             );

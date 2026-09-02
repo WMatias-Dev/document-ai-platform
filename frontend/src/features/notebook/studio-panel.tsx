@@ -64,7 +64,7 @@ export function StudioPanel() {
         notebook_id: isUUID ? activeNotebookId : null,
         source_ids: selectedSourceIds.length > 0 ? selectedSourceIds : null,
         history: historyPayload,
-        max_chunks: 5,
+        max_chunks: 25,
       });
 
       return res.data;
@@ -158,16 +158,16 @@ export function StudioPanel() {
   const isAnyTaskRunning = taskMutation.isPending || isChatLoading;
 
   return (
-    <aside className="w-80 h-full border-l border-[#242628] bg-[#0C0D0E] flex flex-col shrink-0 select-none">
+    <aside className="w-80 h-full border-l border-slate-200/80 bg-slate-50/60 flex flex-col shrink-0 select-none">
       {/* Studio Tab Navigation */}
-      <div className="p-2 border-b border-[#242628]">
-        <div className="flex items-center gap-1 p-0.5 rounded bg-[#161719] border border-[#242628]">
+      <div className="p-2.5 border-b border-slate-200/80 bg-white/80">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/80 border border-slate-200/60">
           <button
             onClick={() => setActiveStudioTab("notes")}
-            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               activeStudioTab === "notes"
-                ? "bg-[#242628] text-[#D97706] font-medium"
-                : "text-[#85888C] hover:text-[#E3E3E3]"
+                ? "bg-white text-emerald-800 shadow-2xs font-semibold"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Notas
@@ -175,10 +175,10 @@ export function StudioPanel() {
 
           <button
             onClick={() => setActiveStudioTab("citation")}
-            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               activeStudioTab === "citation"
-                ? "bg-[#242628] text-[#E3E3E3] font-medium"
-                : "text-[#85888C] hover:text-[#E3E3E3]"
+                ? "bg-white text-emerald-800 shadow-2xs font-semibold"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Evidência
@@ -186,10 +186,10 @@ export function StudioPanel() {
 
           <button
             onClick={() => setActiveStudioTab("overview")}
-            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               activeStudioTab === "overview"
-                ? "bg-[#242628] text-[#E3E3E3] font-medium"
-                : "text-[#85888C] hover:text-[#E3E3E3]"
+                ? "bg-white text-emerald-800 shadow-2xs font-semibold"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Tarefas
@@ -197,10 +197,10 @@ export function StudioPanel() {
 
           <button
             onClick={() => setActiveStudioTab("search")}
-            className={`flex-1 py-1 px-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+            className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               activeStudioTab === "search"
-                ? "bg-[#242628] text-[#E3E3E3] font-medium"
-                : "text-[#85888C] hover:text-[#E3E3E3]"
+                ? "bg-white text-emerald-800 shadow-2xs font-semibold"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Busca
@@ -209,42 +209,43 @@ export function StudioPanel() {
       </div>
 
       {/* Tab Contents */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-4">
         {/* ABA: CADERNO DE NOTAS & SÍNTESE */}
         {activeStudioTab === "notes" && (
           <div className="h-full flex flex-col animate-in fade-in duration-100 min-h-[420px]">
             <NotesEditor />
           </div>
         )}
+
         {/* ABA 1: EVIDÊNCIA CITADA / LEITOR DE TRECHO */}
         {activeStudioTab === "citation" && (
-          <div className="space-y-3 animate-in fade-in duration-100">
+          <div className="space-y-3.5 animate-in fade-in duration-100">
             {selectedCitation ? (
               <>
-                <div className="rounded border border-[#242628] bg-[#161719] p-3 space-y-1.5 text-xs">
+                <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 space-y-2 text-xs shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase text-[#85888C]">
+                    <span className="text-[11px] font-sans text-slate-500">
                       Documento de Origem
                     </span>
-                    <span className="font-sans font-medium text-[#E3E3E3] truncate max-w-[150px]">
+                    <span className="font-medium text-slate-800 truncate max-w-[160px]">
                       {selectedCitation.document_title}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase text-[#85888C]">
+                    <span className="text-[11px] font-sans text-slate-500">
                       Posição no Arquivo
                     </span>
-                    <span className="font-mono text-[11px] text-[#E3E3E3]">
+                    <span className="font-mono text-xs text-slate-700">
                       Trecho #p.{selectedCitation.chunk_index}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase text-[#85888C]">
+                    <span className="text-[11px] font-sans text-slate-500">
                       Similaridade Cosseno
                     </span>
-                    <span className="rounded bg-[#0C0D0E] border border-[#242628] px-1.5 py-0.5 text-[#10B981] font-mono text-[10px]">
+                    <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-emerald-700 font-mono text-[11px] font-semibold">
                       {(selectedCitation.similarity_score * 100).toFixed(1)}%
                     </span>
                   </div>
@@ -263,59 +264,59 @@ export function StudioPanel() {
                   </div>
                 )}
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
+                    <span className="text-xs font-semibold text-slate-700">
                       Fragmento Textual Original
                     </span>
                     <button
                       onClick={() => handleCopySnippet(selectedCitation.text_snippet)}
-                      className="inline-flex items-center gap-1 text-[10px] font-mono text-[#85888C] hover:text-[#E3E3E3] transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-sans text-slate-500 hover:text-emerald-700 transition-colors cursor-pointer"
                     >
                       {isCopied ? (
                         <>
-                          <Check className="h-3 w-3 text-[#10B981]" />
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
                           <span>Copiado</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="h-3 w-3" />
+                          <Copy className="h-3.5 w-3.5" />
                           <span>Copiar</span>
                         </>
                       )}
                     </button>
                   </div>
 
-                  {/* Highlight Box Marca-Texto Ocre */}
-                  <div className="rounded border-l-2 border-l-[#D97706] border border-[#242628] bg-[#D97706]/10 p-3 text-xs font-serif text-[#FDE68A] leading-relaxed max-h-[30vh] overflow-y-auto whitespace-pre-wrap">
+                  {/* Highlight Box Marca-Texto Suave */}
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs font-serif text-emerald-950 leading-relaxed max-h-[30vh] overflow-y-auto whitespace-pre-wrap shadow-2xs">
                     "{selectedCitation.text_snippet}"
                   </div>
                 </div>
               </>
             ) : (
-              <div className="p-6 text-center rounded border border-dashed border-[#242628] bg-[#161719]/30">
-                <Quote className="h-4 w-4 text-[#55585D] mx-auto mb-1.5" />
-                <p className="text-xs font-sans text-[#E3E3E3]">
+              <div className="p-6 text-center rounded-2xl border border-dashed border-slate-200 bg-white">
+                <Quote className="h-5 w-5 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-700">
                   Nenhuma citação selecionada
                 </p>
-                <p className="text-[10px] font-mono text-[#85888C] mt-1 leading-relaxed">
-                  Clique nas referências [1], [2] nas respostas para exibir o trecho original aqui.
+                <p className="text-[11px] font-sans text-slate-400 mt-1 leading-relaxed">
+                  Clique nas referências [1], [2] nas respostas do chat para inspecionar o trecho original com bounding box aqui.
                 </p>
               </div>
             )}
           </div>
         )}
 
-        {/* ABA 2: TAREFAS DE ANÁLISE PRONTAS (UNIVERSAL NOTEBOOKLM) */}
+        {/* ABA 2: TAREFAS DE ANÁLISE PRONTAS */}
         {activeStudioTab === "overview" && (
-          <div className="space-y-2.5 animate-in fade-in duration-100">
-            <div className="border-b border-[#242628] pb-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#85888C]">
+          <div className="space-y-3 animate-in fade-in duration-100">
+            <div className="border-b border-slate-200/80 pb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-700">
                 Tarefas Rápidas de Análise
               </span>
               {isAnyTaskRunning && (
-                <span className="text-[10px] font-mono text-[#D97706] flex items-center gap-1">
-                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                <span className="text-[11px] font-sans text-emerald-700 flex items-center gap-1 font-medium">
+                  <Loader2 className="h-3 w-3 animate-spin" />
                   Processando...
                 </span>
               )}
@@ -331,43 +332,45 @@ export function StudioPanel() {
 
         {/* ABA 3: BUSCA DIRETA NO ACERVO */}
         {activeStudioTab === "search" && (
-          <div className="space-y-2.5 animate-in fade-in duration-100">
-            <form onSubmit={handleSearchSubmit} className="space-y-1.5">
+          <div className="space-y-3 animate-in fade-in duration-100">
+            <form onSubmit={handleSearchSubmit} className="space-y-2">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[#85888C]" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <input
+                  id="studio-search-query"
+                  name="searchQuery"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Buscar trecho por significado..."
-                  className="w-full rounded border border-[#242628] bg-[#161719] pl-7 pr-3 py-1.5 text-xs text-[#E3E3E3] placeholder-[#55585D] focus:outline-none focus:border-[#383B40] font-sans"
+                  className="w-full rounded-xl border border-slate-200 bg-white pl-8.5 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-sans shadow-2xs"
                 />
               </div>
               <button
                 type="submit"
                 disabled={searchMutation.isPending || !searchQuery.trim()}
-                className="w-full rounded bg-[#242628] hover:bg-[#383B40] py-1 text-[11px] font-mono text-[#E3E3E3] transition-colors cursor-pointer disabled:opacity-40"
+                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 py-2 text-xs font-medium text-white transition-all cursor-pointer disabled:opacity-40 shadow-xs active:scale-[0.98]"
               >
                 {searchMutation.isPending ? "Consultando..." : "Localizar Fragmentos"}
               </button>
             </form>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {searchResults.map((chunk) => (
                 <div
                   key={chunk.chunk_id}
                   onClick={() => openSearchResultInStudio(chunk)}
-                  className="rounded border border-[#242628] bg-[#161719] hover:bg-[#222427] p-2 text-left transition-colors cursor-pointer space-y-1"
+                  className="rounded-xl border border-slate-200/80 bg-white hover:border-emerald-300 hover:shadow-sm p-3 text-left transition-all cursor-pointer space-y-1.5 shadow-2xs active:scale-[0.98]"
                 >
-                  <div className="flex items-center justify-between text-[10px] font-mono">
-                    <span className="text-[#E3E3E3] truncate max-w-[130px]">
+                  <div className="flex items-center justify-between text-[11px] font-sans">
+                    <span className="font-semibold text-slate-800 truncate max-w-[150px]">
                       {chunk.document_title}
                     </span>
-                    <span className="text-[#10B981]">
+                    <span className="font-mono font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
                       {(chunk.similarity_score * 100).toFixed(0)}%
                     </span>
                   </div>
-                  <p className="text-[11px] text-[#85888C] line-clamp-2 font-serif">
+                  <p className="text-xs text-slate-600 line-clamp-2 font-serif">
                     "{chunk.text_content}"
                   </p>
                 </div>
