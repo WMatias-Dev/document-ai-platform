@@ -15,42 +15,6 @@ export interface Notebook {
   coverGradient?: string;
 }
 
-const DEFAULT_NOTEBOOKS: Notebook[] = [
-  {
-    id: "default",
-    title: "Análise de Documentos e Contratos",
-    description: "Caderno padrão para ingestão de PDFs, análise de cláusulas e RAG",
-    emoji: "📑",
-    color: "#3b82f6",
-    createdAt: "25 de ago. de 2026",
-    updatedAt: "Hoje",
-    sourceCount: 2,
-    documentIds: [],
-  },
-  {
-    id: "pesquisa-ia",
-    title: "Pesquisa em IA e Arquitetura RAG",
-    description: "Estudo comparativo de busca vetorial HNSW e modelos Gemini 3.7",
-    emoji: "🧠",
-    color: "#8b5cf6",
-    createdAt: "24 de ago. de 2026",
-    updatedAt: "Ontem",
-    sourceCount: 5,
-    documentIds: [],
-  },
-  {
-    id: "financeiro-q3",
-    title: "Relatórios Financeiros e Balanços Q3",
-    description: "Demonstrativos de resultados e métricas financeiras",
-    emoji: "📊",
-    color: "#10b981",
-    createdAt: "20 de ago. de 2026",
-    updatedAt: "Há 5 dias",
-    sourceCount: 3,
-    documentIds: [],
-  },
-];
-
 export const FEATURED_TEMPLATES: Notebook[] = [
   {
     id: "feat-1",
@@ -96,18 +60,18 @@ export const FEATURED_TEMPLATES: Notebook[] = [
 
 interface NotebookStore {
   notebooks: Notebook[];
-  activeNotebookId: string;
+  activeNotebookId: string | null;
   createNotebook: (title: string, emoji?: string) => string;
   updateNotebook: (id: string, updates: Partial<Notebook>) => void;
   deleteNotebook: (id: string) => void;
   duplicateNotebook: (id: string) => string;
-  setActiveNotebookId: (id: string) => void;
+  setActiveNotebookId: (id: string | null) => void;
   initStore: () => void;
 }
 
 export const useNotebookStore = create<NotebookStore>((set, get) => ({
-  notebooks: DEFAULT_NOTEBOOKS,
-  activeNotebookId: "default",
+  notebooks: [],
+  activeNotebookId: null,
 
   initStore: () => {
     if (typeof window !== "undefined") {
@@ -116,7 +80,7 @@ export const useNotebookStore = create<NotebookStore>((set, get) => ({
         try {
           set({ notebooks: JSON.parse(saved) });
         } catch {
-          set({ notebooks: DEFAULT_NOTEBOOKS });
+          set({ notebooks: [] });
         }
       }
     }
@@ -181,5 +145,5 @@ export const useNotebookStore = create<NotebookStore>((set, get) => ({
     return newId;
   },
 
-  setActiveNotebookId: (id: string) => set({ activeNotebookId: id }),
+  setActiveNotebookId: (id: string | null) => set({ activeNotebookId: id }),
 }));
