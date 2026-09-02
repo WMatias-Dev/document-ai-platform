@@ -1,23 +1,43 @@
+import uuid
+import pytest
+from fastapi import HTTPException
+from app.database.models.document import Document
+from app.database.models.user import User
+from app.services.document_service import DocumentService
 from unittest.mock import MagicMock
-from app.database.rls import setup_row_level_security, RLS_STATEMENTS
 
 
-def test_setup_row_level_security_executes_all_policies():
-    mock_engine = MagicMock()
-    mock_conn = MagicMock()
-    mock_engine.begin.return_value.__enter__.return_value = mock_conn
+def test_tenant_isolation_prevents_cross_user_access():
+    """
+    Valida que a camada de aplicação impede que o Usuário B acesse documentos do Usuário A.
+    """
+    user_a_id = uuid.uuid4()
+    user_b_id = uuid.uuid4()
+    doc_id = uuid.uuid4()
 
-    setup_row_level_security(mock_engine)
+    user_a = User(id=user_a_id, name="Usuário A", email="a@test.com", password_hash="hash")
+    user_b = User(id=user_b_id, name="Usuário B", email="b@test.com", password_hash="hash")
 
-    # Verifica se todas as statements de RLS foram executadas
-    assert mock_conn.execute.call_count == len(RLS_STATEMENTS)
+    doc_a = Document(id=doc_id, title="Doc Confidencial A.pdf", owner_id=user_a_id)
 
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = doc_a
 
-def test_rls_statements_contain_tenant_isolation_policies():
-    combined = " ".join(RLS_STATEMENTS)
-    assert "ENABLE ROW LEVEL SECURITY" in combined
-    assert "document_tenant_isolation" in combined
-    assert "chunk_tenant_isolation" in combined
-    assert "notebook_tenant_isolation" in combined
-    assert "thread_tenant_isolation" in combined
-    assert "app.current_user_id" in combined
+    service = DocumentService(
+        repository=mock_repo,
+        storage=MagicMock(),
+        parser=MagicMock(),
+        chunker=MagicMock(),
+        embedder=MagicMock(),
+    )
+
+    # Usuário A pode acessar seu próprio documento
+    doc = service.get_document(document_id=doc_id, current_user=user_a)
+    assert doc.id == doc_id
+    assert doc.owner_id == user_a_id
+
+    # Usuário B é barrado com 403 Forbidden
+    with pytest.raises(HTTPException) as exc_info:
+        service.get_document(document_id=doc_id, current_user=user_b)
+
+    assert exc_info.value.status_code == 403

@@ -1,0 +1,140 @@
+[
+  {
+    "id": "eval-001",
+    "category": "single_hop_factual",
+    "question": "Qual é a vigência inicial do contrato e qual o prazo de aviso prévio para denúncia imotivada?",
+    "expected_answer": "A vigência inicial é de 12 (doze) meses a contar da data de assinatura, e a denúncia imotivada exige aviso prévio formal por escrito com antecedência mínima de 30 (trinta) dias.",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": 2,
+    "canonical_text_snippets": [
+      "O presente contrato vigorará pelo prazo inicial de 12 (doze) meses",
+      "Qualquer das partes poderá rescindir o presente instrumento sem justa causa, mediante aviso prévio por escrito com antecedência mínima de 30 (trinta) dias"
+    ]
+  },
+  {
+    "id": "eval-002",
+    "category": "single_hop_factual",
+    "question": "Qual é o valor da multa compensatória em caso de rescisão antecipada imotivada?",
+    "expected_answer": "Em caso de rescisão antecipada imotivada, incidirá multa compensatória no valor correspondente a 20% (vinte por cento) sobre o valor remanescente do saldo contratual.",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": 3,
+    "canonical_text_snippets": [
+      "multa compensatória não compensatória de 20% (vinte por cento) calculada sobre o valor das parcelas vincendas"
+    ]
+  },
+  {
+    "id": "eval-003",
+    "category": "single_hop_factual",
+    "question": "Qual o Acordo de Nível de Serviço (SLA) de disponibilidade garantido e o prazo para resposta a incidentes críticos?",
+    "expected_answer": "A CONTRATADA garante disponibilidade mensal mínima de 99,9% (noventa e nove vírgula nove por cento), com tempo de primeira resposta para incidentes de severidade crítica de até 1 (uma) hora.",
+    "document_title": "Anexo_SLA_Seguranca.pdf",
+    "relevant_page": 1,
+    "canonical_text_snippets": [
+      "disponibilidade mínima mensal de 99,9%",
+      "Incidentes de Severidade 1 (Crítico): tempo de primeira resposta em até 1 (uma) hora"
+    ]
+  },
+  {
+    "id": "eval-004",
+    "category": "single_hop_factual",
+    "question": "Quais são as medidas técnicas mínimas de segurança da informação e proteção de dados pessoais exigidas?",
+    "expected_answer": "As partes comprometem-se a utilizar criptografia em repouso (AES-256) e em trânsito (TLS 1.3), controle de acesso baseado em privilégio mínimo com autenticação de múltiplos fatores (MFA) e realização de backups diários imutáveis.",
+    "document_title": "Anexo_SLA_Seguranca.pdf",
+    "relevant_page": 2,
+    "canonical_text_snippets": [
+      "criptografia de dados em trânsito utilizando protocolo TLS 1.3 e em repouso utilizando AES-256",
+      "autenticação de múltiplos fatores (MFA) para todos os acessos administrativos",
+      "backups diários imutáveis retidos pelo período mínimo de 90 dias"
+    ]
+  },
+  {
+    "id": "eval-005",
+    "category": "table_boundary",
+    "question": "Qual é a penalidade diária e o limite máximo de retenção por atraso na entrega das ordens de serviço?",
+    "expected_answer": "Incidirá multa de mora de 0,5% (meio por cento) por dia de atraso injustificado sobre o valor da respectiva ordem de serviço, limitada ao teto máximo de 10% (dez por cento).",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": 4,
+    "canonical_text_snippets": [
+      "multa moratória diária de 0,5% (cinco décimos por cento) sobre o valor da respectiva OS",
+      "limitada a 10% (dez por cento) do valor total contratado"
+    ]
+  },
+  {
+    "id": "eval-006",
+    "category": "out_of_scope_adversarial",
+    "question": "Qual é a alíquota de ICMS ou substituição tributária aplicável sobre as faturas mensais de software?",
+    "expected_answer": "Esta informação não consta nos documentos fornecidos.",
+    "document_title": "Contrato_Prestacao_Servicos_Cloud.pdf",
+    "relevant_page": null,
+    "canonical_text_snippets": []
+  },
+  {
+    "id": "eval-007",
+    "category": "multi_hop_conflict",
+    "question": "Qual é o nível de risco e a penalidade administrativa prevista para vulnerabilidades em bases SQL legadas com ausência de MFA, e quais medidas corretivas são obrigatórias?",
+    "expected_answer": "O nível de risco é Crítico, com impacto regulatório de vazamento em massa de dados confidenciais e penalidades administrativas de até 2% do faturamento (Art. 52 da LGPD). A medida corretiva mandatória é a implementação de RBAC (Role-Based Access Control), MFA universal e criptografia em repouso com AES-256.",
+    "document_title": "Relatorio_Analise_Regulatoria_LGPD.pdf",
+    "relevant_page": 3,
+    "canonical_text_snippets": [
+      "Ausência de duplo fator de autenticação (MFA) e privilégios excessivos em bases SQL legadas",
+      "penalidades administrativas de até 2% do faturamento (Art. 52)",
+      "Implementação mandatória de RBAC (Role-Based Access Control), MFA universal e criptografia em repouso (AES-256)"
+    ]
+  },
+  {
+    "id": "eval-008",
+    "category": "table_boundary",
+    "question": "Qual é o prazo exato em horas estabelecido para a Fase 3 (Notificação Regulatória à ANPD e aos Titulares) em caso de incidentes de segurança, e o que deve conter esse comunicado?",
+    "expected_answer": "O prazo da Fase 3 é de 24 a 72 horas após a detecção do incidente. O comunicado formal deve conter a descrição da natureza dos dados, informações sobre os titulares envolvidos, medidas técnicas de mitigação e orientações de segurança.",
+    "document_title": "Relatorio_Analise_Regulatoria_LGPD.pdf",
+    "relevant_page": 4,
+    "canonical_text_snippets": [
+      "Fase 3: Notificação Regulatória à ANPD e aos Titulares (24 a 72 horas)",
+      "descrição da natureza dos dados, informações sobre os titulares envolvidos, medidas técnicas de mitigação e orientações de segurança"
+    ]
+  },
+  {
+    "id": "eval-009",
+    "category": "out_of_scope_adversarial",
+    "question": "Qual é a pena de reclusão ou prisão em flagrante prevista no relatório caso a diretoria não nomeie o DPO até o 15º dia?",
+    "expected_answer": "O documento não prevê nenhuma penalidade criminal, pena de reclusão ou prisão em flagrante. O relatório trata exclusivamente de governança e medidas administrativas no âmbito da LGPD, sendo o Dia 15 o prazo estimado no roadmap para a emissão de portaria de nomeação do DPO.",
+    "document_title": "Relatorio_Analise_Regulatoria_LGPD.pdf",
+    "relevant_page": null,
+    "canonical_text_snippets": []
+  },
+  {
+    "id": "eval-010",
+    "category": "table_boundary",
+    "question": "Qual é o prazo estimado no cronograma para a realização do treinamento e aculturamento de colaboradores em LGPD, quem é o responsável direto e qual o entregável exigido?",
+    "expected_answer": "O prazo estimado é até o Dia 75, sob responsabilidade direta do RH / DPO / Treinamento, com o entregável obrigatório de relatório de adesão, listas de presença e certificados emitidos.",
+    "document_title": "Relatorio_Analise_Regulatoria_LGPD.pdf",
+    "relevant_page": 4,
+    "canonical_text_snippets": [
+      "Treinamento e Aculturamento de Colaboradores em LGPD",
+      "RH / DPO / Treinamento",
+      "Prazo Estimado: Dia 75",
+      "Relatório de adesão, listas de presença e certificados emitidos"
+    ]
+  },
+  {
+    "id": "eval-011",
+    "category": "multi_hop_conflict",
+    "question": "Qual é o prazo máximo definido para resposta às solicitações dos titulares de dados no portal de DSR e qual sanção o relatório aponta caso ocorra descumprimento dos prazos da ANPD?",
+    "expected_answer": "O portal centralizado de Direitos do Titular (DSR) deve controlar os prazos de resposta em até 15 dias corridos. O descumprimento dos prazos da ANPD (Art. 18 e 19) acarreta risco Médio de geração de autos de infração e aplicação de multas diárias.",
+    "document_title": "Relatorio_Analise_Regulatoria_LGPD.pdf",
+    "relevant_page": 3,
+    "canonical_text_snippets": [
+      "Instituição de portal centralizado de Direitos do Titular (DSR) com controle de prazos em até 15 dias corridos",
+      "Descumprimento de prazos da ANPD para resposta a titulares (Art. 18 e 19), gerando autos de infração e multas diárias"
+    ]
+  },
+  {
+    "id": "eval-012",
+    "category": "out_of_scope_adversarial",
+    "question": "Quais são os requisitos mínimos exigidos pelo relatório para a certificação internacional ISO/IEC 27001 dos servidores em nuvem?",
+    "expected_answer": "Esta informação não consta no documento. O relatório não menciona certificação ISO/IEC 27001, restringindo-se aos requisitos da Lei Geral de Proteção de Dados (LGPD), testes de invasão (PenTest), RBAC, MFA e criptografia AES-256.",
+    "document_title": "Relatorio_Analise_Regulatoria_LGPD.pdf",
+    "relevant_page": null,
+    "canonical_text_snippets": []
+  }
+]
