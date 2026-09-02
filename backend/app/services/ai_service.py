@@ -6,15 +6,12 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Modelos com cotas independentes no Google AI Studio para resiliência contínua
+# Modelos ordenados por velocidade, confiabilidade e estabilidade no Google AI Studio
 FALLBACK_MODELS = [
     "gemini-3.5-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemini-3.1-flash-lite",
-    "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-flash-latest",
+    "gemini-3.7-flash",
 ]
 
 
@@ -34,7 +31,25 @@ class AIService:
             )
             self.client = None
         else:
-            self.client = genai.Client(api_key=self.api_key)
+            import httpx
+            from google.genai import types
+            transport = httpx.HTTPTransport(local_address="0.0.0.0", retries=3)
+            custom_httpx = httpx.Client(
+                transport=transport,
+                timeout=httpx.Timeout(120.0, connect=15.0),
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            )
+            self.client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(httpx_client=custom_httpx),
+            )
+
+    def _build_config(self, system_instruction: Optional[str] = None):
+        from google.genai import types
+        return types.GenerateContentConfig(
+            system_instruction=system_instruction if system_instruction else None,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        )
 
     def generate_response(
         self, prompt: str, system_instruction: Optional[str] = None
@@ -48,9 +63,7 @@ class AIService:
                 "Cliente Gemini não inicializado. Verifique se GOOGLE_API_KEY está configurada no .env."
             )
 
-        config = {}
-        if system_instruction:
-            config["system_instruction"] = system_instruction
+        config = self._build_config(system_instruction)
 
         models_to_try = [self.model_name] + [
             m for m in FALLBACK_MODELS if m != self.model_name
@@ -63,7 +76,7 @@ class AIService:
                 response = self.client.models.generate_content(
                     model=candidate_model,
                     contents=prompt,
-                    config=config if config else None,
+                    config=config,
                 )
                 self.model_name = candidate_model
                 return response.text or ""
@@ -83,15 +96,14 @@ class AIService:
     ) -> Generator[str, None, None]:
         """
         Gera tokens progressivos em streaming utilizando o pool resiliente do Gemini.
+        Protege o consumidor contra restarts parciais de texto durante a transmissão.
         """
         if not self.client:
             raise ValueError(
                 "Cliente Gemini não inicializado. Verifique se GOOGLE_API_KEY está configurada no .env."
             )
 
-        config = {}
-        if system_instruction:
-            config["system_instruction"] = system_instruction
+        config = self._build_config(system_instruction)
 
         models_to_try = [self.model_name] + [
             m for m in FALLBACK_MODELS if m != self.model_name
@@ -99,24 +111,31 @@ class AIService:
 
         last_error = None
         for candidate_model in models_to_try:
+            has_yielded = False
             try:
                 logger.info(f"Streaming resposta com o modelo Gemini: {candidate_model}")
                 response_stream = self.client.models.generate_content_stream(
                     model=candidate_model,
                     contents=prompt,
-                    config=config if config else None,
+                    config=config,
                 )
                 self.model_name = candidate_model
                 for chunk in response_stream:
                     if chunk.text:
+                        has_yielded = True
                         yield chunk.text
                 return
             except Exception as e:
                 last_error = e
                 err_str = str(e)
                 logger.warning(
-                    f"Streaming com {candidate_model} falhou: {err_str[:120]}. Alternando para próximo modelo disponível..."
+                    f"Streaming com {candidate_model} falhou (has_yielded={has_yielded}): {err_str[:120]}."
                 )
+                # Se já emitimos tokens para o cliente, não podemos reiniciar o stream com outro modelo
+                # para não gerar texto corrompido ou duplicado.
+                if has_yielded:
+                    logger.warning("Stream já havia transmitido tokens. Encerrando transmissão.")
+                    return
                 time.sleep(0.3)
 
         logger.error(f"Todos os modelos Gemini falharam no streaming: {last_error}", exc_info=True)

@@ -13,27 +13,53 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """
     Serviço de geração e indexação vetorial de chunks em lote (Batching).
-    Suporta Ollama local por padrão com fallback transparente para Google Gemini Embeddings.
+    Utiliza um provedor canônico único definido por configuração (Ollama ou Google Gemini),
+    garantindo homogeneidade estrita do espaço latente e evitando contaminação vetorial.
     """
 
-    def __init__(self, repository: DocumentRepository, batch_size: int = 24):
+    def __init__(
+        self,
+        repository: DocumentRepository,
+        batch_size: int = 24,
+        provider: Optional[str] = None,
+    ):
         self.repository = repository
         self.batch_size = batch_size
-        self.ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.provider = (provider or getattr(settings, "EMBEDDING_PROVIDER", "ollama")).lower().strip()
+        self.ollama_url = os.getenv("OLLAMA_BASE_URL", getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434"))
+        self.ollama_model_name = getattr(settings, "OLLAMA_EMBED_MODEL", "nomic-embed-text")
+        self.gemini_api_key = getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY") or getattr(settings, "GOOGLE_API_KEY", None) or os.getenv("GOOGLE_API_KEY")
+        
         self.embed_model = None
-        self._init_model()
+        self.gemini_client = None
+        self._init_provider()
 
-    def _init_model(self) -> None:
-        try:
-            from llama_index.embeddings.ollama import OllamaEmbedding
-            self.embed_model = OllamaEmbedding(
-                model_name="nomic-embed-text",
-                base_url=self.ollama_url,
-                request_timeout=30.0,
-            )
-        except Exception as e:
-            logger.warning(f"[EmbeddingService] Falha ao instanciar OllamaEmbedding: {e}")
-            self.embed_model = None
+    def _init_provider(self) -> None:
+        """Inicializa exclusivamente o provedor configurado."""
+        if self.provider == "gemini":
+            if not self.gemini_api_key:
+                logger.warning("[EmbeddingService] Provedor Gemini selecionado, mas GOOGLE_API_KEY / GEMINI_API_KEY não configurada.")
+            else:
+                try:
+                    from google import genai
+                    self.gemini_client = genai.Client(api_key=self.gemini_api_key)
+                    logger.info("[EmbeddingService] Provedor Gemini Embeddings (text-embedding-004) inicializado com sucesso.")
+                except Exception as e:
+                    logger.error(f"[EmbeddingService] Falha ao inicializar cliente Gemini: {e}")
+                    self.gemini_client = None
+        else:
+            # Padrão: Ollama
+            try:
+                from llama_index.embeddings.ollama import OllamaEmbedding
+                self.embed_model = OllamaEmbedding(
+                    model_name=self.ollama_model_name,
+                    base_url=self.ollama_url,
+                    request_timeout=30.0,
+                )
+                logger.info(f"[EmbeddingService] Provedor Ollama ({self.ollama_model_name}) inicializado em {self.ollama_url}.")
+            except Exception as e:
+                logger.warning(f"[EmbeddingService] Falha ao instanciar OllamaEmbedding: {e}")
+                self.embed_model = None
 
     def process_document(self, document_id: uuid.UUID) -> None:
         """Processa todos os chunks de um documento em lotes eficientes."""
@@ -52,7 +78,7 @@ class EmbeddingService:
                 return
 
             total = len(unembedded)
-            logger.info(f"[EmbeddingService] Gerando embeddings para {total} chunks em lotes de {self.batch_size}...")
+            logger.info(f"[EmbeddingService] Gerando embeddings ({self.provider}) para {total} chunks em lotes de {self.batch_size}...")
 
             for i in range(0, total, self.batch_size):
                 batch_chunks = unembedded[i : i + self.batch_size]
@@ -72,46 +98,63 @@ class EmbeddingService:
             raise
 
     def generate_query_embedding(self, query_text: str) -> List[float]:
-        """Gera embedding para a query de pesquisa do usuário."""
+        """Gera embedding para a query de pesquisa do usuário utilizando o provedor canônico."""
         if not query_text or not query_text.strip():
             raise ValueError("Texto de consulta não pode ser vazio.")
 
         cleaned_query = query_text.strip()
 
-        try:
-            if self.embed_model:
-                return self.embed_model.get_query_embedding(cleaned_query)
-        except Exception as ollama_err:
-            logger.warning(f"[EmbeddingService] Ollama falhou na query: {ollama_err}. Tentando fallback...")
+        if self.provider == "gemini":
+            return self._generate_gemini_single_embedding(cleaned_query)
 
-        # Fallback para Gemini Embedding API
-        return self._generate_gemini_single_embedding(cleaned_query)
+        # Provedor Ollama
+        if not self.embed_model:
+            self._init_provider()
+
+        if not self.embed_model:
+            raise RuntimeError(f"Provedor Ollama indisponível em {self.ollama_url}. Não é permitido chavear para outro modelo para evitar contaminação do espaço vetorial.")
+
+        try:
+            return self.embed_model.get_query_embedding(cleaned_query)
+        except Exception as err:
+            logger.error(f"[EmbeddingService] Falha ao gerar query embedding via Ollama: {err}", exc_info=True)
+            raise RuntimeError(f"Falha no provedor de embedding Ollama: {err}")
 
     def _generate_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Tenta gerar embeddings via Ollama local; se indisponível, usa fallback Gemini."""
-        try:
-            if self.embed_model:
-                return self.embed_model.get_text_embedding_batch(texts)
-        except Exception as ollama_err:
-            logger.warning(f"[EmbeddingService] Ollama indisponível ({ollama_err}). Acionando fallback Gemini API...")
+        """Gera embeddings em lote utilizando estritamente o provedor canônico."""
+        if self.provider == "gemini":
+            return self._generate_gemini_batch_embeddings(texts)
 
-        return self._generate_gemini_batch_embeddings(texts)
+        # Provedor Ollama
+        if not self.embed_model:
+            self._init_provider()
+
+        if not self.embed_model:
+            raise RuntimeError(f"Provedor Ollama indisponível em {self.ollama_url}. Não é permitido chavear para outro modelo.")
+
+        try:
+            return self.embed_model.get_text_embedding_batch(texts)
+        except Exception as err:
+            logger.error(f"[EmbeddingService] Falha ao gerar lote de embeddings via Ollama: {err}", exc_info=True)
+            raise RuntimeError(f"Falha no provedor de embedding Ollama: {err}")
 
     def _generate_gemini_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Gera embeddings em lote via Google GenAI SDK (768 dimensões)."""
-        api_key = getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("Nenhum provedor de embeddings disponível (Ollama e GEMINI_API_KEY ausentes).")
+        if not self.gemini_client:
+            self._init_provider()
+
+        if not self.gemini_client:
+            raise RuntimeError("Provedor Gemini selecionado, mas cliente não está inicializado (verifique GOOGLE_API_KEY).")
 
         try:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-            
+            from google.genai import types
+            config = types.EmbedContentConfig(output_dimensionality=768)
             results: List[List[float]] = []
             for txt in texts:
-                resp = client.models.embed_content(
-                    model="text-embedding-004",
+                resp = self.gemini_client.models.embed_content(
+                    model="gemini-embedding-001",
                     contents=txt,
+                    config=config,
                 )
                 if hasattr(resp, "embeddings") and resp.embeddings:
                     results.append(resp.embeddings[0].values[:768])
@@ -122,21 +165,24 @@ class EmbeddingService:
 
             return results
         except Exception as gemini_err:
-            logger.error(f"[EmbeddingService] Falha no fallback Gemini Embeddings: {gemini_err}", exc_info=True)
-            raise RuntimeError(f"Erro em todos os provedores de embeddings: {gemini_err}")
+            logger.error(f"[EmbeddingService] Falha no Gemini Embeddings: {gemini_err}", exc_info=True)
+            raise RuntimeError(f"Erro no provedor Gemini Embeddings: {gemini_err}")
 
     def _generate_gemini_single_embedding(self, text: str) -> List[float]:
-        """Gera embedding único via Google GenAI SDK."""
-        api_key = getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("Ollama offline e GEMINI_API_KEY não configurada.")
+        """Gera embedding único via Google GenAI SDK (768 dimensões)."""
+        if not self.gemini_client:
+            self._init_provider()
+
+        if not self.gemini_client:
+            raise RuntimeError("Provedor Gemini selecionado, mas cliente não está inicializado (verifique GOOGLE_API_KEY).")
 
         try:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-            resp = client.models.embed_content(
-                model="text-embedding-004",
+            from google.genai import types
+            config = types.EmbedContentConfig(output_dimensionality=768)
+            resp = self.gemini_client.models.embed_content(
+                model="gemini-embedding-001",
                 contents=text,
+                config=config,
             )
             if hasattr(resp, "embeddings") and resp.embeddings:
                 return resp.embeddings[0].values[:768]
@@ -145,4 +191,4 @@ class EmbeddingService:
             return [0.0] * 768
         except Exception as e:
             logger.error(f"[EmbeddingService] Falha ao gerar embedding com Gemini: {e}", exc_info=True)
-            raise RuntimeError(f"Falha ao gerar vetor: {str(e)}")
+            raise RuntimeError(f"Falha no provedor Gemini Embeddings: {str(e)}")

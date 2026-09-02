@@ -30,20 +30,26 @@ from app.core.ingestion_queue import ingestion_queue
 async def lifespan(app: FastAPI):
     print("Preparando banco de dados...")
     
-    # 1. Ativa o motor de IA no PostgreSQL automaticamente
-    with engine.begin() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-        
-    print("Criando tabelas...")
-    # 2. Cria as tabelas
-    Base.metadata.create_all(bind=engine)
-    print("Tabelas criadas com sucesso!")
+    try:
+        # 1. Ativa os motores de IA e busca textual no PostgreSQL automaticamente
+        with engine.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+            
+        print("Criando tabelas e aplicando migrações de schema...")
+        # 2. Cria as tabelas e migra colunas faltantes
+        Base.metadata.create_all(bind=engine)
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE IF EXISTS document_chunks ADD COLUMN IF NOT EXISTS page_number INTEGER DEFAULT 1;"))
+            conn.execute(text("ALTER TABLE IF EXISTS document_chunks ADD COLUMN IF NOT EXISTS chunk_type TEXT DEFAULT 'text';"))
+            conn.execute(text("ALTER TABLE IF EXISTS document_chunks ADD COLUMN IF NOT EXISTS bounding_box JSONB;"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_document_chunks_fts ON document_chunks USING gin (text_content gin_trgm_ops);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_document_chunks_fts_tsvector ON document_chunks USING gin (to_tsvector('simple', text_content));"))
+        print("Tabelas e migrações aplicadas com sucesso!")
+    except Exception as db_err:
+        logger.warning(f"[lifespan] Aviso ao conectar/migrar banco no startup: {db_err}")
 
-    # 3. Aplica Row-Level Security nativo no PostgreSQL
-    from app.database.rls import setup_row_level_security
-    setup_row_level_security(engine)
-
-    # 4. Inicia a fila de ingestão assíncrona local
+    # 3. Inicia a fila de ingestão assíncrona local
     await ingestion_queue.start()
 
     yield

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Text, ForeignKey, Integer, Index, JSON
+from sqlalchemy import Text, ForeignKey, Integer, Index, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -42,5 +42,10 @@ class DocumentChunk(Base):
             "text_content",
             postgresql_using="gin",
             postgresql_ops={"text_content": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_document_chunks_fts_tsvector",
+            text("to_tsvector('simple', text_content)"),
+            postgresql_using="gin",
         ),
     )

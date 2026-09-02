@@ -45,9 +45,9 @@ class ChatRequest(BaseModel):
         description="Histórico recente de mensagens para manter o contexto da conversa.",
     )
     max_chunks: int = Field(
-        default=5,
+        default=25,
         ge=1,
-        le=20,
+        le=50,
         description="Quantidade máxima de trechos relevantes a serem recuperados.",
     )
 
