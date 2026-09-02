@@ -77,7 +77,7 @@ def test_search_documents_success_flow():
         notebook_id=None,
         document_id=None,
         source_ids=None,
-        limit=15,
+        limit=50,
     )
 
 

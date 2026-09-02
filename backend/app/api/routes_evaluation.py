@@ -1,9 +1,11 @@
 import logging
 from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+from app.database.dependencies import get_current_user
+from app.database.models.user import User
 from app.evaluation.runner import run_evaluation
 from app.evaluation.schemas import EvaluationRun, EvaluationRunSummary
 from app.evaluation.storage import EvaluationStorage
@@ -22,7 +24,7 @@ class TriggerEvaluationRequest(BaseModel):
 
 
 @router.get("/runs", response_model=List[EvaluationRunSummary])
-def list_evaluation_runs():
+def list_evaluation_runs(current_user: User = Depends(get_current_user)):
     """
     Retorna a lista de todas as execuções de avaliação registradas, ordenadas por data.
     """
@@ -30,7 +32,7 @@ def list_evaluation_runs():
 
 
 @router.get("/runs/{run_id}", response_model=EvaluationRun)
-def get_evaluation_run(run_id: str):
+def get_evaluation_run(run_id: str, current_user: User = Depends(get_current_user)):
     """
     Retorna os detalhes completos de uma execução, incluindo traces e métricas por query.
     """
@@ -44,7 +46,7 @@ def get_evaluation_run(run_id: str):
 
 
 @router.get("/baseline", response_model=Optional[EvaluationRun])
-def get_baseline_run():
+def get_baseline_run(current_user: User = Depends(get_current_user)):
     """
     Retorna a execução oficial marcada como Baseline para comparação de experimentos.
     """
@@ -59,9 +61,12 @@ def get_baseline_run():
 
 
 @router.post("/run", response_model=EvaluationRun)
-def trigger_evaluation(payload: TriggerEvaluationRequest):
+def trigger_evaluation(
+    payload: TriggerEvaluationRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
-    Dispara uma nova avaliação de RAG sobre o dataset selecionado e retorna as métricas consolidadas.
+    Dispara uma nova avaliação real de RAG sobre o dataset selecionado e retorna as métricas consolidadas.
     """
     dataset_path = Path(__file__).resolve().parent.parent / "evaluation" / "datasets" / payload.dataset_name
 
@@ -77,6 +82,7 @@ def trigger_evaluation(payload: TriggerEvaluationRequest):
             run_name=payload.name or "Avaliação Sob Demanda",
             is_baseline=payload.is_baseline or False,
             top_k=payload.top_k or 5,
+            current_user=current_user,
         )
         return eval_run
     except Exception as e:

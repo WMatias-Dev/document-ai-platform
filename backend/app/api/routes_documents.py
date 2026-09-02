@@ -1,6 +1,8 @@
 import json
+import os
 import uuid
-from typing import List
+from typing import List, Optional
+from sqlalchemy.orm import Session
 
 from fastapi import (
     APIRouter,
@@ -10,11 +12,19 @@ from fastapi import (
     Depends,
     status,
     BackgroundTasks,
+    Header,
+    Query,
 )
 from fastapi.responses import StreamingResponse
 from app.core.ingestion_queue import ingestion_queue
 
-from app.database.dependencies import get_current_user, get_document_service
+from app.database.dependencies import (
+    get_current_user,
+    get_document_service,
+    get_user_by_token,
+    get_db,
+)
+from app.database.models.document import DocumentStatus
 from app.database.models.user import User
 from app.schemas.document_schema import (
     DocumentCreate,
@@ -84,15 +94,71 @@ async def upload_document(
 )
 async def get_document_progress(
     document_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
     service: DocumentService = Depends(get_document_service),
+    db: Session = Depends(get_db),
 ):
     """
     Transmite eventos Server-Sent Events (SSE) com status percentual da ingestão
     (parsing -> chunking -> embedding -> ready).
+    Suporta autenticação via Bearer Header ou Query Parameter (?token=...).
     """
-    # Valida ownership do documento
-    service.get_document(document_id=document_id, current_user=current_user)
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ")[1]
+    elif token:
+        auth_token = token
+
+    if not auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autenticação não fornecido via Header ou Query.",
+        )
+
+    current_user = get_user_by_token(auth_token, db)
+    doc = service.get_document(document_id=document_id, current_user=current_user)
+
+    # Se o documento já concluiu ou falhou antes da conexão SSE se estabelecer
+    if doc.status == DocumentStatus.COMPLETED:
+        async def immediate_completed():
+            payload = {
+                "document_id": str(document_id),
+                "status": "ready",
+                "progress": 100,
+                "message": "Documento indexado e pronto para pesquisa.",
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+
+        return StreamingResponse(
+            immediate_completed(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    if doc.status == DocumentStatus.ERROR:
+        async def immediate_error():
+            payload = {
+                "document_id": str(document_id),
+                "status": "error",
+                "progress": 0,
+                "message": "Falha no processamento do documento.",
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+
+        return StreamingResponse(
+            immediate_error(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     async def sse_stream():
         async for event in ingestion_queue.subscribe(document_id):
