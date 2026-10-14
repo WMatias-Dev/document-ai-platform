@@ -34,8 +34,8 @@ Diretrizes de Análise e Fidelidade:
 
 class DocumentAgent:
     """
-    Agente RAG responsável pela orquestração entre recuperação semântica,
-    persistência de histórico no PostgreSQL e geração de respostas (síncronas ou streaming) via Gemini.
+    Agente que orquestra a busca nos documentos, monta o contexto e gera a resposta via LLM.
+    Suporta streaming via SSE e persistência opcional do histórico de mensagens.
     """
 
     def __init__(
@@ -49,7 +49,7 @@ class DocumentAgent:
         self.chat_repository = chat_repository
 
     def _prepare_rag_context(self, request: ChatRequest, current_user: User):
-        """Recupera trechos relevantes e monta o prompt contextualizado."""
+        """Monta o prompt com trechos recuperados e histórico recente da conversa."""
         search_request = DocumentSearchRequest(
             query=request.message,
             notebook_id=request.notebook_id,
@@ -58,11 +58,13 @@ class DocumentAgent:
             limit=request.max_chunks,
         )
 
+        # Passo o current_user para garantir que a busca respeite o isolamento por tenant no banco
         search_response = self.document_service.search_documents(
             search_in=search_request,
             current_user=current_user,
         )
 
+        # O bounding_box tem coordenadas normalizadas (0 a 1) para o frontend destacar o trecho no PDF
         citations: List[DocumentCitation] = [
             DocumentCitation(
                 chunk_id=item.chunk_id,
@@ -89,13 +91,16 @@ class DocumentAgent:
                 }
                 for c in citations
             ]
+            # Formato os trechos dentro de tags xml para proteger o modelo contra injeção de prompt vinda do documento
             context_text = SanitizationService.format_safe_rag_context(citations_dicts)
         else:
+            # TODO: se não encontrar trechos, avaliar responder direto sem chamar o modelo para economizar tokens
             context_text = "Nenhum trecho de documento relevante foi encontrado para esta consulta."
 
         history_text = ""
         if request.history:
             formatted_history = []
+            # Pego só as últimas 6 mensagens para manter contexto sem inflar demais o prompt
             for msg in request.history[-6:]:
                 role_name = "Usuário" if msg.role == "user" else "Assistente"
                 formatted_history.append(f"{role_name}: {SanitizationService.sanitize_text(msg.content)}")
@@ -115,11 +120,12 @@ class DocumentAgent:
         return full_prompt, citations
 
     def ask(self, request: ChatRequest, current_user: User) -> ChatResponse:
+        """Gera resposta síncrona consultando os documentos e salvando o turno no banco."""
         logger.info(
             f"[DocumentAgent] Pergunta síncrona do usuário {current_user.email}: '{request.message}'"
         )
 
-        # 1. Persistência de Thread & Pergunta do Usuário
+        # Se não veio thread_id, crio uma conversa nova usando o início da pergunta como título
         thread_id = request.thread_id
         if self.chat_repository:
             if not thread_id:
@@ -142,7 +148,7 @@ class DocumentAgent:
             system_instruction=SYSTEM_PROMPT,
         )
 
-        # 2. Persistência da Resposta do Assistente
+        # Salvo a resposta e as citações no histórico para o usuário poder consultar as fontes depois
         if self.chat_repository and thread_id:
             citations_data = [c.model_dump(mode="json") for c in citations]
             self.chat_repository.add_message(
@@ -163,15 +169,12 @@ class DocumentAgent:
     def ask_stream(
         self, request: ChatRequest, current_user: User
     ) -> Generator[str, None, None]:
-        """
-        Gera eventos SSE (Server-Sent Events) transmitindo fontes e tokens progressivamente,
-        enquanto persiste as mensagens de usuário e assistente no banco de dados.
-        """
+        """Transmite a resposta em tempo real via SSE e persiste o histórico ao finalizar."""
         logger.info(
             f"[DocumentAgent] Pergunta streaming do usuário {current_user.email}: '{request.message}'"
         )
 
-        # 1. Resolve ou cria thread e persiste mensagem do usuário
+        # Persisto a pergunta antes de chamar o modelo para não perder a mensagem se o streaming falhar
         thread_id = request.thread_id
         if self.chat_repository:
             if not thread_id:
@@ -189,11 +192,11 @@ class DocumentAgent:
 
         full_prompt, citations = self._prepare_rag_context(request, current_user)
 
-        # 2. Emite evento de Citações / Fontes encontradas
+        # Envio as citações no primeiro evento SSE para o frontend já montar os cards de fontes
         citations_data = [c.model_dump(mode="json") for c in citations]
         yield f"event: citations\ndata: {json.dumps(citations_data, ensure_ascii=False)}\n\n"
 
-        # 3. Emite tokens progressivos da resposta da IA
+        # Vou acumulando os pedaços de texto para salvar a resposta completa no banco ao término
         accumulated_text = []
         try:
             for token in self.ai_service.generate_response_stream(
@@ -204,6 +207,7 @@ class DocumentAgent:
                 delta_payload = json.dumps({"text": token}, ensure_ascii=False)
                 yield f"event: delta\ndata: {delta_payload}\n\n"
         except Exception as e:
+            # Em caso de erro na API do modelo, notifico o cliente para ele fechar a conexão no frontend
             logger.error(f"[DocumentAgent] Erro durante streaming: {e}", exc_info=True)
             err_payload = json.dumps({"error": str(e)}, ensure_ascii=False)
             yield f"event: error\ndata: {err_payload}\n\n"
@@ -211,7 +215,7 @@ class DocumentAgent:
 
         final_answer = "".join(accumulated_text)
 
-        # 4. Persiste a resposta final no banco de dados
+        # TODO: se o cliente fechar a aba no meio da resposta, o gerador pode ser cortado antes daqui
         message_id_str = ""
         if self.chat_repository and thread_id:
             assistant_msg = self.chat_repository.add_message(
@@ -223,7 +227,7 @@ class DocumentAgent:
             )
             message_id_str = str(assistant_msg.id)
 
-        # 5. Emite evento de conclusão
+        # O evento done fecha o fluxo e devolve os identificadores para o cliente sincronizar o estado
         done_payload = json.dumps(
             {
                 "thread_id": str(thread_id) if thread_id else None,
