@@ -13,7 +13,9 @@ venv/
 # Environment / Secrets (Protected)
 .env
 .env.*
+.env.test
 !.env.example
+!.env.test.example
 *.key
 *.pem
 secrets/

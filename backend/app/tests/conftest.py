@@ -1,8 +1,22 @@
 import os
+import secrets
+from pathlib import Path
 from dotenv import load_dotenv
 
-# 1. Força o carregamento do arquivo de testes, substituindo qualquer variável existente
-load_dotenv(".env.test", override=True)
+# 1. Define defaults seguros gerados para a execução dos testes
+os.environ.setdefault("POSTGRES_USER", "admin")
+os.environ.setdefault("POSTGRES_PASSWORD", "admin")
+os.environ.setdefault("POSTGRES_DB", "documents_test")
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5434")
+os.environ.setdefault("JWT_ALGORITHM", "HS256")
+os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+os.environ.setdefault("JWT_SECRET_KEY", f"test_session_secret_{secrets.token_urlsafe(32)}")
+
+# Carrega .env.test se presente localmente
+test_env_file = Path(".env.test")
+if test_env_file.exists():
+    load_dotenv(test_env_file, override=True)
 
 # 2. AGORA você pode fazer os imports da sua aplicação
 import pytest
@@ -14,13 +28,6 @@ from app.main import app
 from app.core.config import settings
 
 import uuid
-
-# Pode manter seus prints para validar! Agora eles devem mostrar localhost e 5433
-print("=" * 60)
-print("HOST:", settings.POSTGRES_HOST)
-print("PORT:", settings.POSTGRES_PORT)
-print("DB:", settings.POSTGRES_DB)
-print("=" * 60)
 
 from app.database.base import Base
 from app.database.models.user import User  # noqa: F401
