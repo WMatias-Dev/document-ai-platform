@@ -55,3 +55,16 @@ next-env.d.ts
 
 # Evaluation Runs (local test runs)
 backend/app/evaluation/runs/*.json
+backend/app/evaluation/runs_invalid/
+
+# AI Agent Instructions & Local Scratch Files
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.cursorrules
+DESIGN.md
+PRODUCT.md
+**/AGENTS.md
+**/CLAUDE.md
+**/GEMINI.md
+**/.cursorrules
