@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 from app.core.ingestion_queue import ingestion_queue
 
 class DocumentService:
+    """
+    Coordena o ciclo de vida dos documentos: upload, pipeline assíncrono de ingestão e busca híbrida com rerank.
+    """
+
     def __init__(
         self,
         repository: DocumentRepository,
@@ -50,10 +54,7 @@ class DocumentService:
         background_tasks: Optional[BackgroundTasks] = None,
         notebook_id: Optional[uuid.UUID] = None,
     ) -> dict:
-        """
-        Recebe o upload, persiste o arquivo físico, cria o registro e despacha
-        para a fila assíncrona local (zero bloqueio de thread).
-        """
+        """Salva o arquivo enviado, registra no banco com status 'queued' e coloca na fila de processamento."""
         try:
             file_path = await self.storage.save_file(file)
         except ValueError as ve:
@@ -77,12 +78,13 @@ class DocumentService:
             notebook_id=notebook_id,
         )
 
+        # Crio o registro no banco antes de enfileirar para o frontend já ter o ID e conseguir abrir o SSE de progresso
         document_record = self.repository.create(
             document_in=document_in,
             owner_id=owner_id,
         )
 
-        # Enfileira na fila assíncrona local com semáforo
+        # Despacho o processamento para a fila em memória controlada por semáforo para não travar a thread HTTP
         await ingestion_queue.enqueue(
             document_id=document_record.id,
             file_path=str(file_path),
@@ -96,13 +98,13 @@ class DocumentService:
         }
 
     def _run_pipeline(self, document_id: uuid.UUID, file_path: str) -> None:
-        """
-        Orquestra o pipeline em background com controle de progresso granular.
-        """
+        """Executa parsing, chunking e embeddings em thread de worker com emissão de progresso granular."""
+        # Abro uma sessão isolada de banco porque esse método roda em thread separada fora do ciclo da requisição
         db = self.session_factory() if self.session_factory else None
         repo = DocumentRepository(db) if db else self.repository
         embedder = EmbeddingService(repository=repo) if db else self.embedder
 
+        # Helper para emitir progresso via SSE sem quebrar caso o loop assíncrono esteja em thread paralela
         def _notify(status_str: str, progress_num: int, msg: str):
             try:
                 import asyncio
@@ -115,6 +117,7 @@ class DocumentService:
                 pass
 
         try:
+            # Fase 1: Parsing do PDF para extrair texto e tabelas em Markdown com coordenadas
             repo.update_status(document_id=document_id, status=DocumentStatus.PARSING)
             _notify("parsing", 25, "Extraindo layout e tabelas estruturadas com PyMuPDF...")
 
@@ -131,6 +134,7 @@ class DocumentService:
                 status=DocumentStatus.PARSING,
             )
 
+            # Fase 2: Particionamento em chunks preservando tabelas inteiras
             repo.update_status(document_id=document_id, status=DocumentStatus.CHUNKING)
             _notify("chunking", 50, "Particionando texto e preservando tabelas em Markdown...")
 
@@ -156,6 +160,7 @@ class DocumentService:
             ]
             repo.create_chunks(chunks_data)
 
+            # Fase 3: Geração de vetores de 768 dimensões para busca por similaridade
             _notify("embedding", 75, "Gerando embeddings vetoriais (768d)...")
             if hasattr(embedder, "process_document"):
                 embedder.process_document(document_id)
@@ -164,6 +169,7 @@ class DocumentService:
             _notify("ready", 100, "Documento indexado e pronto para pesquisa.")
 
         except Exception as e:
+            # Se falhar em qualquer etapa, marco o documento como ERROR e notifico o frontend pelo canal SSE
             logger.error(
                 f"Erro no pipeline do documento {document_id}: {e}", exc_info=True
             )
@@ -178,15 +184,18 @@ class DocumentService:
                     f"Falha ao atualizar status para ERROR no documento {document_id}: {update_err}"
                 )
         finally:
+            # Fecho a sessão criada para o worker para não vazar conexões no pool do PostgreSQL
             if db is not None:
                 db.close()
 
     def create_document(
         self, document_in: DocumentCreate, current_user: User
     ) -> Document:
+        """Cria o registro do documento vinculado ao usuário autenticado."""
         return self.repository.create(document_in=document_in, owner_id=current_user.id)
 
     def get_document(self, document_id: uuid.UUID, current_user: User) -> Document:
+        """Busca o documento pelo ID e valida se pertence ao usuário autenticado."""
         document = self.repository.get_by_id(document_id)
 
         if not document:
@@ -195,6 +204,7 @@ class DocumentService:
                 detail="Documento não encontrado.",
             )
 
+        # Verifico owner_id explicitamente para impedir que um usuário visualize arquivos de outro tenant
         if document.owner_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -204,11 +214,14 @@ class DocumentService:
         return document
 
     def get_user_documents(self, current_user: User) -> List[Document]:
+        """Lista todos os documentos pertencentes ao usuário autenticado."""
         return self.repository.get_all_by_owner(owner_id=current_user.id)
 
     def delete_document(self, document_id: uuid.UUID, current_user: User) -> None:
+        """Remove o documento do banco e apaga o arquivo físico correspondente do disco."""
         document = self.get_document(document_id=document_id, current_user=current_user)
 
+        # Apago o arquivo físico do disco antes de deletar a linha no banco de dados
         if hasattr(self.storage, "delete_file") and document.file_path:
             self.storage.delete_file(document.file_path)
 
@@ -218,14 +231,16 @@ class DocumentService:
     def search_documents(
         self, search_in: DocumentSearchRequest, current_user: User
     ) -> DocumentSearchResponse:
+        """Executa busca híbrida (vetor + texto pleno) e refina os resultados usando modelo de rerank."""
         if search_in.document_id:
             self.get_document(search_in.document_id, current_user)
 
         query_embedding = self.embedder.generate_query_embedding(search_in.query)
 
-        # 1. Recupera um pool de candidatos mais amplo para o Rerank (Mínimo 50 ou 2x o limit)
+        # Busco uma janela maior de candidatos (mínimo 50) para o reranker poder reordenar com base na relevância real
         candidate_limit = max(50, search_in.limit * 2)
 
+        # O hybrid_search_rrf combina a busca vetorial (cosseno) com busca léxica do Postgres usando RRF
         if hasattr(self.repository, "hybrid_search_rrf"):
             raw_results = self.repository.hybrid_search_rrf(
                 query_text=search_in.query,
@@ -253,7 +268,7 @@ class DocumentService:
                 results=[],
             )
 
-        # 2. Formata candidatos para o Cross-Encoder
+        # Formato a lista de candidatos com metadados de página e bbox para o modelo de reranking pontuar
         candidates = [
             {
                 "chunk_id": chunk.id,
@@ -269,7 +284,7 @@ class DocumentService:
             for chunk, score in raw_results
         ]
 
-        # 3. Executa Rerank (se habilitado) para filtrar até search_in.limit
+        # O Cross-Encoder reclassifica os candidatos avaliando o texto completo da pergunta contra cada trecho
         if self.reranker:
             reranked_candidates = self.reranker.rerank(
                 query=search_in.query,
@@ -277,6 +292,7 @@ class DocumentService:
                 top_n=search_in.limit,
             )
         else:
+            # Se o reranker estiver desabilitado, utilizo a ordenação original do RRF truncando no limit solicitado
             reranked_candidates = candidates[:search_in.limit]
 
         results = [
