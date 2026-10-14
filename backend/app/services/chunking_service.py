@@ -7,9 +7,8 @@ logger = logging.getLogger(__name__)
 
 class ChunkingService:
     """
-    Serviço de particionamento (chunking) estruturado e hierárquico.
-    Preserva tabelas de forma atômica para não corromper cabeçalhos e dados,
-    e particiona blocos de texto respeitando páginas e bounding boxes.
+    Divide o texto do documento em trechos menores (chunks) com sobreposição.
+    Mantém tabelas inteiras para não quebrar colunas e preserva página e bounding box.
     """
 
     def __init__(
@@ -22,6 +21,7 @@ class ChunkingService:
         self.overlap = overlap
         self.min_chunk_size = min_chunk_size
 
+        # O overlap precisa ser estritamente menor que o chunk_size para a janela deslizante avançar
         if self.overlap >= self.chunk_size:
             raise ValueError("O overlap deve ser menor que o tamanho do chunk.")
 
@@ -29,10 +29,7 @@ class ChunkingService:
         self,
         parsed_elements: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """
-        Gera chunks preservando metadados de layout, número de página e tabelas atômicas,
-        aplicando sanitização e blindagem contra indirect prompt injection.
-        """
+        """Recebe os elementos do parser e divide em chunks preservando tabelas inteiras e metadados de página."""
         if not parsed_elements:
             return []
 
@@ -41,6 +38,7 @@ class ChunkingService:
         for elem in parsed_elements:
             chunk_type = elem.get("chunk_type", "text")
             raw_text = elem.get("text", "")
+            # Sanitizo cada bloco antes de gerar os chunks para remover caracteres de controle e tags maliciosas
             text = SanitizationService.sanitize_text(raw_text)
             page_num = elem.get("page_number", 1)
             bbox = elem.get("bounding_box", [0.0, 0.0, 1.0, 1.0])
@@ -48,7 +46,7 @@ class ChunkingService:
             if not text:
                 continue
 
-            # 1. Tabelas são preservadas de forma ATÔMICA
+            # Não corto tabelas no meio mesmo se passarem do chunk_size para não perder a relação entre linhas e cabeçalhos
             if chunk_type == "table":
                 chunks.append({
                     "chunk_type": "table",
@@ -58,7 +56,7 @@ class ChunkingService:
                 })
                 continue
 
-            # 2. Blocos de texto que cabem em um único chunk
+            # Se o bloco textual já cabe no limite, mantenho ele inteiro com as coordenadas originais daquele parágrafo
             if len(text) <= self.chunk_size:
                 chunks.append({
                     "chunk_type": "text",
@@ -68,7 +66,8 @@ class ChunkingService:
                 })
                 continue
 
-            # 3. Blocos de texto longos são fatiados com overlap
+            # Para blocos longos que foram fatiados, cada sub-chunk herda o bounding box do bloco pai
+            # TODO: refinar o cálculo de bbox dos sub-chunks para destacar apenas a linha específica em vez do bloco inteiro
             sub_chunks = self.chunk_text(text)
             for sub in sub_chunks:
                 chunks.append({
@@ -84,7 +83,7 @@ class ChunkingService:
         return chunks
 
     def chunk_text(self, text: str) -> List[str]:
-        """Chunking clássico baseado em janela deslizante com overlap."""
+        """Fatia uma string longa em pedaços usando janela deslizante com tamanho fixo e sobreposição."""
         cleaned_text = text.strip() if text else ""
         if not cleaned_text:
             return []
@@ -97,6 +96,7 @@ class ChunkingService:
         chunks: List[str] = []
         start = 0
 
+        # TODO: o corte atual é por caractere fixo; melhorar para cortar em quebras de frase ou parágrafo
         while start < text_length:
             end = start + self.chunk_size
             chunk = cleaned_text[start:end]
@@ -105,11 +105,13 @@ class ChunkingService:
             if end >= text_length:
                 break
 
+            # Avanço a janela descontando a sobreposição para garantir que o contexto entre chunks não se perca
             start += self.chunk_size - self.overlap
 
-        # Se o último chunk for menor que min_chunk_size, mescla no anterior
+        # Se a sobra final for muito pequena (ex: menos de 50 caracteres), junto no chunk anterior para não gerar lixo vetorial
         if len(chunks) > 1 and len(chunks[-1]) < self.min_chunk_size:
             last_chunk = chunks.pop()
+            # Desconto a sobreposição ao mesclar para não duplicar o trecho repetido dentro do mesmo chunk
             residual = (
                 last_chunk[self.overlap:]
                 if len(last_chunk) > self.overlap
