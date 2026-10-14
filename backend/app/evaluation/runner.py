@@ -65,6 +65,9 @@ def run_evaluation(
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
     runs_dir: Optional[Path] = None,
+    disable_fallback: bool = False,
+    fixed_model: Optional[str] = None,
+    judge_delay_s: float = 0.0,
 ) -> EvaluationRun:
     """Roda a bateria de testes de RAG sobre um dataset, calcula métricas de busca/geração e salva o relatório."""
     if not dataset_path.exists():
@@ -109,7 +112,7 @@ def run_evaluation(
             password_hash="eval_hash",
         )
 
-    ai_service = AIService()
+    ai_service = AIService(model=fixed_model, disable_fallback=disable_fallback)
 
     # Faço a chamada de aquecimento para que o tempo do primeiro caso não inclua o handshake SSL
     if perform_warmup:
@@ -125,6 +128,7 @@ def run_evaluation(
     generation_latencies: List[float] = []
     recalls: List[float] = []
     mrrs: List[float] = []
+    abstentions: List[float] = []
     faithfulness_scores: List[float] = []
     relevancy_scores: List[float] = []
 
@@ -218,44 +222,52 @@ def run_evaluation(
             total_latency_ms = round((t_total_end - t_total_start) * 1000.0, 2)
             total_latencies.append(total_latency_ms)
 
-            # Cálculo de métricas: penalizo com zero se houve erro de execução na chamada
-            if status == "ERROR":
-                recall = 0.0
-                mrr = 0.0
+            # Identificação de caso de abstenção (pergunta fora do escopo sem trechos esperados)
+            is_abstention = not bool(canonical_snippets)
+            abstention_correct = None
+            recall = None
+            mrr = None
+
+            # Cálculo de métricas de busca vetorial (avaliação de retrieval pura)
+            if not is_abstention:
+                recall = calculate_recall_at_k(retrieved_chunks, canonical_snippets, k=top_k)
+                mrr = calculate_mrr_at_k(retrieved_chunks, canonical_snippets, k=top_k)
+                recalls.append(recall)
+                mrrs.append(mrr)
+            else:
+                # Casos fora do escopo avaliam a capacidade de recusa (abstenção) do LLM sem distorcer Recall/MRR de busca
+                is_refusal = is_valid_refusal(generated_answer) if status == "SUCCESS" else False
+                abstention_correct = is_refusal
+                abstentions.append(1.0 if is_refusal else 0.0)
+
+            # Avaliação por juízes LLM
+            faith_score = None
+            rel_score = None
+            if evaluate_llm_judges and status == "SUCCESS":
+                if judge_delay_s > 0:
+                    time.sleep(judge_delay_s)  # Respeita o limite de RPM configurado
+                faith_res = faithfulness_judge.evaluate(
+                    answer=generated_answer,
+                    context_chunks=retrieved_chunks,
+                )
+                faith_score = faith_res.get("score")
+                # Se o juiz quebrar o formato JSON ou der timeout, conto a falha sem derrubar o teste
+                if faith_res.get("judge_failure") or faith_score is None:
+                    judge_failures_count += 1
+
+                if judge_delay_s > 0:
+                    time.sleep(judge_delay_s)  # Respeita o limite de RPM configurado
+                rel_res = relevancy_judge.evaluate(
+                    question=question,
+                    answer=generated_answer,
+                )
+                rel_score = rel_res.get("score")
+                if rel_res.get("judge_failure") or rel_score is None:
+                    judge_failures_count += 1
+            elif status == "ERROR":
                 faith_score = 0.0
                 rel_score = 0.0
-            else:
-                if canonical_snippets:
-                    recall = calculate_recall_at_k(retrieved_chunks, canonical_snippets, k=top_k)
-                    mrr = calculate_mrr_at_k(retrieved_chunks, canonical_snippets, k=top_k)
-                else:
-                    # Casos sem trechos esperados testam recusa (pergunta fora do escopo); se recusou, pontua 1.0
-                    recall = 1.0 if is_valid_refusal(generated_answer) else 0.0
-                    mrr = 1.0 if is_valid_refusal(generated_answer) else 0.0
 
-                # Avaliação por juízes LLM
-                faith_score = None
-                rel_score = None
-                if evaluate_llm_judges:
-                    faith_res = faithfulness_judge.evaluate(
-                        answer=generated_answer,
-                        context_chunks=retrieved_chunks,
-                    )
-                    faith_score = faith_res.get("score")
-                    # Se o juiz quebrar o formato JSON ou der timeout, conto a falha sem derrubar o teste
-                    if faith_res.get("judge_failure") or faith_score is None:
-                        judge_failures_count += 1
-
-                    rel_res = relevancy_judge.evaluate(
-                        question=question,
-                        answer=generated_answer,
-                    )
-                    rel_score = rel_res.get("score")
-                    if rel_res.get("judge_failure") or rel_score is None:
-                        judge_failures_count += 1
-
-            recalls.append(recall)
-            mrrs.append(mrr)
             if faith_score is not None:
                 faithfulness_scores.append(faith_score)
             if rel_score is not None:
@@ -270,10 +282,12 @@ def run_evaluation(
                     model_used=str(getattr(ai_service, "model_name", "gemini") or "gemini"),
                     retrieved_chunk_count=len(retrieved_chunks),
                     retrieved_snippets=retrieved_chunks,
-                    recall_at_5=round(recall, 4),
-                    mrr_at_5=round(mrr, 4),
+                    recall_at_5=round(recall, 4) if recall is not None else None,
+                    mrr_at_5=round(mrr, 4) if mrr is not None else None,
                     faithfulness_score=faith_score,
                     answer_relevancy_score=rel_score,
+                    is_abstention=is_abstention,
+                    abstention_correct=abstention_correct,
                     latency=LatencyBreakdown(
                         total_latency_ms=total_latency_ms,
                         retrieval_latency_ms=ret_latency_ms,
@@ -311,6 +325,7 @@ def run_evaluation(
 
     avg_recall = round(sum(recalls) / len(recalls), 4) if recalls else None
     avg_mrr = round(sum(mrrs) / len(mrrs), 4) if mrrs else None
+    avg_abstention = round(sum(abstentions) / len(abstentions), 4) if abstentions else None
     # TODO: se a lista de scores do juiz for vazia por falhas totais, a média fica None em vez de zero
     avg_faith = round(sum(faithfulness_scores) / len(faithfulness_scores), 4) if faithfulness_scores else None
     avg_rel = round(sum(relevancy_scores) / len(relevancy_scores), 4) if relevancy_scores else None
@@ -353,6 +368,7 @@ def run_evaluation(
             mrr_at_5=avg_mrr,
             faithfulness=avg_faith,
             answer_relevancy=avg_rel,
+            abstention_accuracy=avg_abstention,
             judge_failures=judge_failures_count,
         ),
         performance=PerformanceMetrics(
