@@ -120,3 +120,72 @@ def test_contracts_eval_v2_schema_and_edge_cases():
             assert len(snippets) >= 1, f"Caso {case['id']} deve ter snippets canônicos."
             for snip in snippets:
                 assert len(snip.strip()) >= 8
+
+
+def test_runner_records_real_models_real_chunks_and_error_count(tmp_path):
+    """
+    Garante que o runner grava modelo gerador, modelo juiz, N de casos,
+    chunk_size/overlap REAIS do chunker e a quantidade real de casos com erro.
+    """
+    dataset_file = tmp_path / "test_dataset.json"
+    dataset_content = [
+        {
+            "id": "q1",
+            "question": "Pergunta 1",
+            "expected_answer": "Resp 1",
+            "canonical_text_snippets": ["snippet 1"],
+        },
+        {
+            "id": "q2",
+            "question": "Pergunta 2 com erro",
+            "expected_answer": "Resp 2",
+            "canonical_text_snippets": ["snippet 2"],
+        },
+    ]
+    dataset_file.write_text(json.dumps(dataset_content), encoding="utf-8")
+
+    mock_doc_service = MagicMock()
+    mock_chunker = MagicMock()
+    mock_chunker.chunk_size = 512
+    mock_chunker.overlap = 64
+    mock_doc_service.chunker = mock_chunker
+
+    mock_chunk = SearchResultChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        document_title="Doc.pdf",
+        chunk_index=0,
+        text_content="snippet 1",
+        similarity_score=0.9,
+    )
+    mock_doc_service.search_documents.return_value = DocumentSearchResponse(
+        query="q", total_results=1, results=[mock_chunk]
+    )
+
+    test_user = User(id=uuid.uuid4(), name="Tester", email="tester@test.com", password_hash="hash")
+
+    with patch("app.evaluation.runner.AIService") as mock_ai_class:
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.model_name = "gemini-3.5-flash"
+        # q1 tem sucesso, q2 lança exceção (simula falha de LLM)
+        mock_ai_instance.generate_response.side_effect = [
+            "Resposta gerada com sucesso",
+            RuntimeError("Rate limit / 429 quota exhaustion"),
+        ]
+        mock_ai_class.return_value = mock_ai_instance
+
+        run_result = run_evaluation(
+            dataset_path=dataset_file,
+            run_name="Test Schema Metadata",
+            evaluate_llm_judges=False,
+            perform_warmup=False,
+            current_user=test_user,
+            document_service=mock_doc_service,
+        )
+
+        assert run_result.generator_model == "gemini-3.5-flash"
+        assert run_result.judge_model is not None
+        assert run_result.dataset_size == 2
+        assert run_result.chunk_size == 512
+        assert run_result.chunk_overlap == 64
+        assert run_result.error_count == 1

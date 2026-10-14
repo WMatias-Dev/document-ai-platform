@@ -64,6 +64,8 @@ class EvaluationStorage:
                         dataset_version=run.dataset_version,
                         dataset_size=run.dataset_size,
                         model_name=run.model_name,
+                        generator_model=getattr(run, "generator_model", run.model_name),
+                        judge_model=getattr(run, "judge_model", run.model_name),
                         recall_at_5=run.rag_quality.recall_at_5,
                         mrr_at_5=run.rag_quality.mrr_at_5,
                         faithfulness=run.rag_quality.faithfulness,
@@ -73,6 +75,7 @@ class EvaluationStorage:
                         success_rate=run.reliability.success_rate,
                         empty_retrieval_rate=run.reliability.empty_retrieval_rate,
                         judge_failures=getattr(run.rag_quality, "judge_failures", 0),
+                        error_count=getattr(run, "error_count", run.reliability.failed_queries),
                     )
                 )
             except Exception as e:

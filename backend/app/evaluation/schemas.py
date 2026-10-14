@@ -73,10 +73,13 @@ class EvaluationRun(BaseModel):
     dataset_version: str
     dataset_size: int
     model_name: str
+    generator_model: Optional[str] = None
+    judge_model: Optional[str] = None
     embedding_model: str
     chunk_size: int
     chunk_overlap: int
     top_k: int
+    error_count: Optional[int] = 0
     
     # Grupos de Métricas Oficiais
     rag_quality: RAGQualityMetrics
@@ -96,6 +99,8 @@ class EvaluationRunSummary(BaseModel):
     dataset_version: str
     dataset_size: int
     model_name: str
+    generator_model: Optional[str] = None
+    judge_model: Optional[str] = None
     recall_at_5: Optional[float]
     mrr_at_5: Optional[float]
     faithfulness: Optional[float]
@@ -105,3 +110,4 @@ class EvaluationRunSummary(BaseModel):
     success_rate: Optional[float]
     empty_retrieval_rate: Optional[float]
     judge_failures: Optional[int] = 0
+    error_count: Optional[int] = 0

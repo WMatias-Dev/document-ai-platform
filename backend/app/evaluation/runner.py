@@ -65,6 +65,8 @@ def run_evaluation(
     perform_warmup: bool = True,
     current_user: Optional[User] = None,
     document_service: Optional[DocumentService] = None,
+    chunk_size: Optional[int] = None,
+    chunk_overlap: Optional[int] = None,
 ) -> EvaluationRun:
     """
     Executa a avaliação REAL do RAG sobre um dataset canônico de ground truth,
@@ -311,6 +313,21 @@ def run_evaluation(
     now_utc = datetime.now(timezone.utc)
     run_id = custom_run_id or f"run-{now_utc.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
+    actual_chunk_size = chunk_size
+    if actual_chunk_size is None and doc_service is not None and hasattr(doc_service, "chunker"):
+        actual_chunk_size = getattr(doc_service.chunker, "chunk_size", 1000)
+    if actual_chunk_size is None:
+        actual_chunk_size = 1000
+
+    actual_chunk_overlap = chunk_overlap
+    if actual_chunk_overlap is None and doc_service is not None and hasattr(doc_service, "chunker"):
+        actual_chunk_overlap = getattr(doc_service.chunker, "overlap", 200)
+    if actual_chunk_overlap is None:
+        actual_chunk_overlap = 200
+
+    gen_model = str(getattr(ai_service, "model_name", "gemini") or "gemini")
+    judge_model_name = str(getattr(faithfulness_judge.ai_service, "model_name", gen_model) or gen_model)
+
     eval_run = EvaluationRun(
         run_id=run_id,
         name=run_name,
@@ -318,11 +335,14 @@ def run_evaluation(
         timestamp=now_utc.isoformat(),
         dataset_version=dataset_path.stem,
         dataset_size=len(test_cases),
-        model_name=str(getattr(ai_service, "model_name", "gemini") or "gemini"),
+        model_name=gen_model,
+        generator_model=gen_model,
+        judge_model=judge_model_name,
         embedding_model=getattr(settings, "OLLAMA_EMBED_MODEL", "nomic-embed-text"),
-        chunk_size=1000,
-        chunk_overlap=200,
+        chunk_size=actual_chunk_size,
+        chunk_overlap=actual_chunk_overlap,
         top_k=top_k,
+        error_count=failed_count,
         rag_quality=RAGQualityMetrics(
             recall_at_5=avg_recall,
             mrr_at_5=avg_mrr,
