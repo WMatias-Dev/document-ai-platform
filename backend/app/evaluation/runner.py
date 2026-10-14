@@ -295,6 +295,12 @@ def run_evaluation(
             except Exception:
                 pass
 
+    if empty_retrieval_count == len(test_cases) and len(test_cases) > 0:
+        raise RuntimeError(
+            f"Avaliação abortada: 100% das consultas ({empty_retrieval_count}/{len(test_cases)}) "
+            "retornaram retrieval vazio. Nenhum documento relevante indexado no banco."
+        )
+
     # 6. Agregação Estatística Consolidada
     perf_stats = calculate_percentiles(total_latencies)
     reliability_stats = calculate_reliability_stats(

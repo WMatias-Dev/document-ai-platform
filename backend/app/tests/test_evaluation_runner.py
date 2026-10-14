@@ -189,3 +189,50 @@ def test_runner_records_real_models_real_chunks_and_error_count(tmp_path):
         assert run_result.chunk_size == 512
         assert run_result.chunk_overlap == 64
         assert run_result.error_count == 1
+
+
+def test_runner_aborts_when_all_retrievals_are_empty(tmp_path):
+    """
+    Garante que o runner aborta (lança exceção) se 100% dos casos
+    tiverem retrieval vazio, evitando persistir runs corrompidas/inválidas.
+    """
+    dataset_file = tmp_path / "test_dataset.json"
+    dataset_content = [
+        {
+            "id": "q1",
+            "question": "Pergunta 1",
+            "expected_answer": "Resp 1",
+            "canonical_text_snippets": ["snippet 1"],
+        },
+        {
+            "id": "q2",
+            "question": "Pergunta 2",
+            "expected_answer": "Resp 2",
+            "canonical_text_snippets": ["snippet 2"],
+        },
+    ]
+    dataset_file.write_text(json.dumps(dataset_content), encoding="utf-8")
+
+    # DocumentService retorna busca vazia para todas as consultas
+    mock_doc_service = MagicMock()
+    mock_doc_service.search_documents.return_value = DocumentSearchResponse(
+        query="q", total_results=0, results=[]
+    )
+
+    test_user = User(id=uuid.uuid4(), name="Tester", email="tester@test.com", password_hash="hash")
+
+    with patch("app.evaluation.runner.AIService") as mock_ai_class:
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.model_name = "gemini-3.5-flash"
+        mock_ai_instance.generate_response.return_value = "Não encontrei informações."
+        mock_ai_class.return_value = mock_ai_instance
+
+        with pytest.raises(RuntimeError, match="retrieval vazio"):
+            run_evaluation(
+                dataset_path=dataset_file,
+                run_name="Test Abort On 100% Empty",
+                evaluate_llm_judges=False,
+                perform_warmup=False,
+                current_user=test_user,
+                document_service=mock_doc_service,
+            )
