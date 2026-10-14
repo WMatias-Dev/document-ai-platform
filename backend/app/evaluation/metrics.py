@@ -54,22 +54,36 @@ def is_chunk_relevant(
     chunk_text: str,
     canonical_snippets: List[str],
     token_overlap_threshold: float = 0.65,
+    strict_match: bool = False,
 ) -> bool:
     """
     Determina de forma determinística se um chunk recuperado é relevante para a pergunta,
     comparando-o com os snippets de texto canônicos do Ground Truth.
+    
+    Se strict_match for True, exige contenção literal da substring normalizada.
+    Se strict_match for False, permite também sobreposição de tokens (>= 0.65) ou Jaccard (>= 0.50).
     """
     if not chunk_text or not canonical_snippets:
         return False
 
+    norm_chunk = _normalize_text(chunk_text)
+
     for snippet in canonical_snippets:
-        ratio = _substring_overlap_ratio(snippet, chunk_text)
-        if ratio >= token_overlap_threshold:
+        norm_snippet = _normalize_text(snippet)
+        if not norm_snippet:
+            continue
+
+        if norm_snippet in norm_chunk:
             return True
 
-        jaccard = _token_jaccard_similarity(snippet, chunk_text)
-        if jaccard >= 0.50:
-            return True
+        if not strict_match:
+            ratio = _substring_overlap_ratio(snippet, chunk_text)
+            if ratio >= token_overlap_threshold:
+                return True
+
+            jaccard = _token_jaccard_similarity(snippet, chunk_text)
+            if jaccard >= 0.50:
+                return True
 
     return False
 
@@ -79,6 +93,7 @@ def calculate_recall_at_k(
     canonical_snippets: List[str],
     k: int = 5,
     token_overlap_threshold: float = 0.65,
+    strict_match: bool = False,
 ) -> float:
     """
     Calcula Recall@K: Proporção de snippets canônicos essenciais presentes
@@ -98,7 +113,7 @@ def calculate_recall_at_k(
     for snippet in canonical_snippets:
         snippet_found = False
         for chunk in top_k_chunks:
-            if is_chunk_relevant(chunk, [snippet], token_overlap_threshold):
+            if is_chunk_relevant(chunk, [snippet], token_overlap_threshold, strict_match=strict_match):
                 snippet_found = True
                 break
         if snippet_found:
@@ -112,6 +127,7 @@ def calculate_mrr_at_k(
     canonical_snippets: List[str],
     k: int = 5,
     token_overlap_threshold: float = 0.65,
+    strict_match: bool = False,
 ) -> float:
     """
     Calcula Mean Reciprocal Rank (MRR@K) para uma query individual:
@@ -123,7 +139,7 @@ def calculate_mrr_at_k(
 
     top_k_chunks = retrieved_chunks[:k]
     for rank, chunk in enumerate(top_k_chunks, start=1):
-        if is_chunk_relevant(chunk, canonical_snippets, token_overlap_threshold):
+        if is_chunk_relevant(chunk, canonical_snippets, token_overlap_threshold, strict_match=strict_match):
             return 1.0 / rank
 
     return 0.0
