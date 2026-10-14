@@ -7,7 +7,7 @@
 ## 🌟 Principais Recursos & Diferenciais Técnicos
 
 * **Bancada de Trabalho Tripartite (*NotebookLM Style*)**: Layout em 3 colunas dedicadas — Fontes em Custódia, Dossiê de Pesquisa/Chat em Tempo Real e Inspetor de Evidências/Studio de Notas.
-* **Busca Híbrida com Fusão RRF (*Reciprocal Rank Fusion*)**: Combina recuperação densa vetorial (**pgvector** com distância cosseno) e recuperação esparsa lexical (**PostgreSQL Full-Text Search** via `plainto_tsquery` e `ts_rank_cd`), unificadas por ordenação ponderada RRF (`dense 0.6` / `sparse 0.4`).
+* **Busca Híbrida com Fusão RRF (*Reciprocal Rank Fusion*)**: Executa consultas densas vetoriais (**pgvector** com distância cosseno) e esparsas lexicais (**PostgreSQL Full-Text Search** via `plainto_tsquery` e `ts_rank_cd`), unificadas e reordenadas na camada de serviço Python via algoritmo RRF ponderado (`dense 0.6` / `sparse 0.4`).
 * **Reranking Neural Cross-Encoder (FlashRank)**: Reordenação de alta precisão com modelo `ms-marco-TinyBERT-L-2-v2` executado localmente em CPU via ONNX Runtime (~5-10ms, ~15MB RAM), eliminando necessidade de GPU dedicada e maximizando a relevância dos trechos entregues ao LLM.
 * **Extração Estruturada & Detecção de Tabelas (PyMuPDF)**: Parsing veloz em C via `fitz` com detecção nativa de tabelas (`find_tables()`), conversão de dados tabulares para Markdown, cálculo de *Bounding Boxes* normalizadas (`[x0, y0, x1, y1]`) e fallback seguro para `pypdfium2`.
 * **Inspetor Visual de Evidências com Overlay em PDF**: Componente interativo com navegação por páginas, zoom e projeção visual animada da caixa delimitadora (*bounding box*) sobre o trecho exato citado no documento original.
@@ -16,7 +16,7 @@
 * **Studio de Notas & Sínteses com Tiptap WYSIWYG**: Editor de texto rico integrado, permitindo compilar conclusões, editar notas de pesquisa e injetar respostas do chat diretamente nas notas do caderno.
 * **Pool Resiliente Multi-Modelo**: Alternância automática entre modelos do Google Gemini (`gemini-3.7-flash`, `gemini-3.5-flash`, `gemini-3.6-flash`, etc.), eliminando indisponibilidade por esgotamento de cota (*429 RESOURCE_EXHAUSTED*).
 * **RAG Evaluation & Observabilidade Real**: Dashboard com métricas quantitativas calculadas sobre execuções reais (**Recall@5**, **MRR@5**, **Faithfulness**, **Answer Relevancy**, percentis de latência **P50/P95/P99** e **Quality Gates** com suporte a abstenção).
-* **Segurança em Camadas & Isolamento Multi-tenant**: Isolamento estrito de dados por usuário na camada de aplicação e repositórios (`WHERE owner_id = :current_user_id`), proteção contra injeção indireta de prompt com higienização de delimitadores e sanitização contra *Path Traversal*.
+* **Segurança em Camadas & Isolamento Multi-tenant**: Isolamento de dados por usuário aplicado na camada de aplicação e repositórios (`WHERE owner_id = :current_user_id`), proteção contra injeção indireta de prompt com higienização de delimitadores e sanitização contra *Path Traversal*.
 
 ---
 
@@ -55,7 +55,8 @@ sequenceDiagram
         API->>Emb: Gera embedding da consulta
         Emb-->>API: query_vector
         API->>DB: Busca Densa (HNSW) + Busca Esparsa (FTS 'simple')
-        DB-->>API: Top-50 Candidatos unificados por RRF (dense 0.6 / sparse 0.4)
+        DB-->>API: Candidatos densos e esparsos
+        Note over API: Fusão RRF na aplicação (dense 0.6 / sparse 0.4)
     end
 
     rect rgb(240, 245, 255)
@@ -84,26 +85,29 @@ sequenceDiagram
 
 ## 📊 RAG Evaluation & Observabilidade (Baseline v1.2)
 
-A plataforma possui um subsistema nativo de benchmarking offline e observabilidade contínua com **zero números simulados**, validando o pipeline contra datasets canônicos de ground truth:
+A plataforma possui um subsistema nativo de benchmarking offline e observabilidade contínua. Os dados abaixo refletem a execução real persistida no repositório (`run-20260826-013344-00ce66.json` em `backend/app/evaluation/runs/`):
 
 ```
 ================================================================================
-MÉTRICA                         BASELINE v1.2 (Produção)   QUALITY GATE EXIGIDO
+MÉTRICA                         BASELINE v1.2 (Gravado)    QUALITY GATE EXIGIDO
 ================================================================================
 Recall@5                        100.0%                     ≥ 90.0%  (Pass)
 MRR@5                           1.000                      ≥ 0.850  (Pass)
 Faithfulness (Fidelidade)       100.0%                     ≥ 90.0%  (Pass)
 Answer Relevancy (Relevância)   100.0%                     ≥ 95.0%  (Pass)
 Success Rate (Confiabilidade)   100.0%                     ≥ 95.0%  (Pass)
-P50 Latency                     0.78s                      < 3.00s  (Pass)
-P95 Latency                     4.12s                      < 8.00s  (Pass)
+P50 Latency                     0.78s (783ms)              < 3.00s  (Pass)
+P95 Latency                     4.12s (4.123ms)            < 8.00s  (Pass)
 STATUS GERAL DA HOMOLOGAÇÃO     ✅ APROVADO NA HOMOLOGAÇÃO (5/5 Critérios)
 ================================================================================
 ```
 
-* **Datasets Canônicos Versionados**: `contracts_eval_v1.json` (6 casos focados em cláusulas contratuais) e `contracts_eval_v2.json` (12 casos expandidos com perguntas multifacetadas e testes adversariais).
-* **Tratamento de Abstenção (`Negative Testing`)**: Quando submetido a perguntas fora de escopo, o sistema recusa com precisão, recebendo pontuação máxima em fidelidade por não alucinar.
-* **Métricas de Precisão**: Cronometragem em alta fidelidade via `time.perf_counter()` para isolar tempo de retrieval, rerank e geração de tokens.
+### Parâmetros & Limitações Metodológicas do Benchmark:
+* **Tamanho Amostral ($N=6$)**: Avaliado sobre o dataset `contracts_eval_v1.json` composto por 5 perguntas factuais sobre cláusulas contratuais e 1 teste negativo fora de escopo.
+* **Modelo Gerador**: `gemini-3.5-flash-lite` (Google GenAI).
+* **Modelo Juiz LLM**: `gemini-3.5-flash-lite` (mesmo modelo gerador utilizado como avaliador de Faithfulness e Answer Relevancy). Há limitação metodológica conhecida de auto-avaliação (*self-judging bias*).
+* **Tratamento de Abstenção (`Negative Testing`)**: Para perguntas cujo contexto não contém a informação, o sistema recusa e pontua fidelidade máxima por não alucinar.
+* **Ressalvas de Latência & Cota**: Em conjuntos maiores ($N=12$) ou sob tiers gratuitos, a latência de rede e a taxa de sucesso podem oscilar devido a limites de requisição (*HTTP 429 RESOURCE_EXHAUSTED*).
 
 ---
 
@@ -169,13 +173,15 @@ npm run dev
 ---
 
 ## 🧪 Execução de Testes e Benchmarks
+ 
+ A plataforma conta com 54 testes automatizados (34 testes de unidade isolados e rápidos que executam sem banco de dados + 20 testes de integração que exigem instância ativa de PostgreSQL com pgvector):
 
 ```bash
-# 1. Executar todos os testes automatizados do backend
-pytest backend/app/tests/
+# 1. Executar todos os testes isolados (sem necessidade de banco de dados)
+pytest backend/app/tests/test_evaluation_*.py backend/app/tests/test_sanitization.py backend/app/tests/test_parsing_service.py
 
-# 2. Executar testes específicos de busca híbrida e isolamento de dados
-pytest backend/app/tests/test_search.py backend/app/tests/test_rerank_service.py backend/app/tests/test_rls.py
+# 2. Executar suíte completa com banco de dados Docker ativo
+pytest backend/app/tests/
 
 # 3. Executar o benchmark oficial de avaliação RAG via CLI (Baseline v1.2)
 python -m app.evaluation.runner --dataset backend/app/evaluation/datasets/contracts_eval_v1.json --name "Baseline v1.2" --baseline --top_k 5
