@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """
-    Serviço de geração e indexação vetorial de chunks em lote (Batching).
-    Utiliza um provedor canônico único definido por configuração (Ollama ou Google Gemini),
-    garantindo homogeneidade estrita do espaço latente e evitando contaminação vetorial.
+    Gera vetores para chunks de documentos e perguntas de busca usando Ollama ou Gemini.
+    Usa um único provedor fixo por vez para não misturar espaços vetoriais diferentes no banco.
     """
 
     def __init__(
@@ -25,6 +24,7 @@ class EmbeddingService:
     ):
         self.repository = repository
         self.batch_size = batch_size
+        # O provedor padrão é o Ollama local com nomic-embed-text (768 dimensões)
         self.provider = (provider or getattr(settings, "EMBEDDING_PROVIDER", "ollama")).lower().strip()
         self.ollama_url = os.getenv("OLLAMA_BASE_URL", getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434"))
         self.ollama_model_name = getattr(settings, "OLLAMA_EMBED_MODEL", "nomic-embed-text")
@@ -35,7 +35,7 @@ class EmbeddingService:
         self._init_provider()
 
     def _init_provider(self) -> None:
-        """Inicializa exclusivamente o provedor configurado."""
+        """Inicializa o cliente do provedor de embeddings configurado."""
         if self.provider == "gemini":
             if not self.gemini_api_key:
                 logger.warning("[EmbeddingService] Provedor Gemini selecionado, mas GOOGLE_API_KEY / GEMINI_API_KEY não configurada.")
@@ -51,6 +51,7 @@ class EmbeddingService:
             # Padrão: Ollama
             try:
                 from llama_index.embeddings.ollama import OllamaEmbedding
+                # No Ollama configuro timeout de 30s porque modelos locais podem demorar em lotes grandes
                 self.embed_model = OllamaEmbedding(
                     model_name=self.ollama_model_name,
                     base_url=self.ollama_url,
@@ -62,7 +63,7 @@ class EmbeddingService:
                 self.embed_model = None
 
     def process_document(self, document_id: uuid.UUID) -> None:
-        """Processa todos os chunks de um documento em lotes eficientes."""
+        """Gera embeddings para todos os chunks pendentes do documento e salva no banco em lotes."""
         self.repository.update_status(document_id, DocumentStatus.EMBEDDING)
 
         try:
@@ -72,6 +73,7 @@ class EmbeddingService:
                 logger.warning(f"Nenhum chunk encontrado para gerar embeddings no documento {document_id}.")
                 return
 
+            # Filtro só os chunks que ainda não têm vetor para permitir retomar documentos interrompidos
             unembedded = [c for c in chunks if c.embedding is None]
             if not unembedded:
                 logger.info(f"Todos os chunks do documento {document_id} já possuem embeddings.")
@@ -80,6 +82,7 @@ class EmbeddingService:
             total = len(unembedded)
             logger.info(f"[EmbeddingService] Gerando embeddings ({self.provider}) para {total} chunks em lotes de {self.batch_size}...")
 
+            # Processo em lotes de 24 para equilibrar uso de memória e velocidade da chamada HTTP
             for i in range(0, total, self.batch_size):
                 batch_chunks = unembedded[i : i + self.batch_size]
                 texts = [c.text_content for c in batch_chunks]
@@ -89,7 +92,7 @@ class EmbeddingService:
                 for chunk, emb in zip(batch_chunks, embeddings):
                     chunk.embedding = emb
 
-                # Salva o lote no banco de dados de forma incremental
+                # Persisto cada lote após gerar para não perder o progresso caso o processo caia no meio
                 self.repository.save_chunks(batch_chunks)
                 logger.info(f"[EmbeddingService] Lote {i // self.batch_size + 1}/{(total + self.batch_size - 1) // self.batch_size} persistido.")
 
@@ -98,7 +101,7 @@ class EmbeddingService:
             raise
 
     def generate_query_embedding(self, query_text: str) -> List[float]:
-        """Gera embedding para a query de pesquisa do usuário utilizando o provedor canônico."""
+        """Gera o vetor da pergunta do usuário para busca por similaridade de cosseno."""
         if not query_text or not query_text.strip():
             raise ValueError("Texto de consulta não pode ser vazio.")
 
@@ -111,6 +114,7 @@ class EmbeddingService:
         if not self.embed_model:
             self._init_provider()
 
+        # Não faço fallback para outro modelo se o Ollama falhar, porque comparar vetores de modelos diferentes quebra a busca
         if not self.embed_model:
             raise RuntimeError(f"Provedor Ollama indisponível em {self.ollama_url}. Não é permitido chavear para outro modelo para evitar contaminação do espaço vetorial.")
 
@@ -121,7 +125,7 @@ class EmbeddingService:
             raise RuntimeError(f"Falha no provedor de embedding Ollama: {err}")
 
     def _generate_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Gera embeddings em lote utilizando estritamente o provedor canônico."""
+        """Chama a API do provedor configurado para gerar vetores para uma lista de textos."""
         if self.provider == "gemini":
             return self._generate_gemini_batch_embeddings(texts)
 
@@ -139,7 +143,7 @@ class EmbeddingService:
             raise RuntimeError(f"Falha no provedor de embedding Ollama: {err}")
 
     def _generate_gemini_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Gera embeddings em lote via Google GenAI SDK (768 dimensões)."""
+        """Gera embeddings em lote via Gemini fixando 768 dimensões para compatibilidade com o banco."""
         if not self.gemini_client:
             self._init_provider()
 
@@ -148,8 +152,10 @@ class EmbeddingService:
 
         try:
             from google.genai import types
+            # Forço 768 dimensões para caber exatamente na coluna VECTOR(768) do PostgreSQL sem erro de schema
             config = types.EmbedContentConfig(output_dimensionality=768)
             results: List[List[float]] = []
+            # TODO: o loop atual faz uma requisição por texto; usar a chamada em batch nativa quando a SDK estabilizar
             for txt in texts:
                 resp = self.gemini_client.models.embed_content(
                     model="gemini-embedding-001",
@@ -169,7 +175,7 @@ class EmbeddingService:
             raise RuntimeError(f"Erro no provedor Gemini Embeddings: {gemini_err}")
 
     def _generate_gemini_single_embedding(self, text: str) -> List[float]:
-        """Gera embedding único via Google GenAI SDK (768 dimensões)."""
+        """Gera embedding único via Gemini com 768 dimensões."""
         if not self.gemini_client:
             self._init_provider()
 
