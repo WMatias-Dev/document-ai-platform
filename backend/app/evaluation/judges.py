@@ -119,8 +119,8 @@ Instruções Estritas:
 
 class FaithfulnessEvaluator:
     """
-    Avaliador de Fidelidade factual baseado em Decomposição Atômica de Afirmações
-    com suporte robusto a abstenção/negative testing (out of scope).
+    Avalia se as afirmações da resposta são sustentadas pelo contexto dos documentos.
+    Usa a própria LLM para quebrar o texto em declarações e checar se há alucinação.
     """
 
     def __init__(self, ai_service: Optional[AIService] = None):
@@ -129,6 +129,7 @@ class FaithfulnessEvaluator:
     def evaluate(
         self, answer: str, context_chunks: List[str]
     ) -> Dict[str, Any]:
+        """Recebe a resposta e os trechos de contexto, devolvendo nota de 0 a 1 e detalhes de cada afirmação."""
         if not answer or not answer.strip():
             return {
                 "score": 0.0,
@@ -140,7 +141,7 @@ class FaithfulnessEvaluator:
 
         joined_context = "\n---\n".join(context_chunks) if context_chunks else ""
 
-        # Caso 1: Sem contexto (caso adversarial / out-of-scope)
+        # Se não houve contexto recuperado e o modelo recusou, pontuo 1.0; se inventou resposta, pontuo 0.0
         if not joined_context.strip():
             if is_valid_refusal(answer):
                 return {
@@ -165,7 +166,7 @@ class FaithfulnessEvaluator:
                     "reasoning": "Alucinação: O modelo fez afirmações factuais sem nenhum contexto recuperado.",
                 }
 
-        # Caso 2: Resposta de abstenção mesmo com contexto recuperado
+        # Resposta curta de recusa mesmo com algum contexto também pontua 1.0 porque o modelo evitou alucinar
         if is_valid_refusal(answer) and len(answer.strip().split()) <= 20:
             return {
                 "score": 1.0,
@@ -186,6 +187,7 @@ class FaithfulnessEvaluator:
                 system_instruction="Você é um avaliador JSON estrito. Retorne apenas JSON válido sem marcações markdown.",
             )
 
+            # Se o juiz não devolver JSON legível, marco judge_failure para o runner não zerar a nota injustamente
             parsed = extract_json_safely(raw_response)
             if not parsed:
                 logger.warning(f"[FaithfulnessEvaluator] Falha de JSON do juiz. Raw: {raw_response[:100]}")
@@ -209,6 +211,7 @@ class FaithfulnessEvaluator:
                     "judge_failure": True,
                 }
 
+            # A nota de fidelidade é a proporção de afirmações comprovadas pelo contexto (supported / total)
             supported_count = sum(1 for c in claims if c.get("supported") is True)
             total_count = len(claims)
             score = round(supported_count / total_count, 4)
@@ -224,7 +227,7 @@ class FaithfulnessEvaluator:
 
         except Exception as e:
             logger.error(f"[FaithfulnessEvaluator] Erro na avaliação: {e}", exc_info=True)
-            # Se for recusa válida, garante nota 1.0 mesmo se a API do juiz oscilar
+            # Se for recusa válida, garanto nota 1.0 mesmo se a API do juiz oscilar
             if is_valid_refusal(answer):
                 return {
                     "score": 1.0,
@@ -234,6 +237,7 @@ class FaithfulnessEvaluator:
                     "reasoning": "Abstenção correta validada com segurança.",
                     "judge_failure": False,
                 }
+            # Se a API da LLM falhar durante o julgamento, retorno None e sinalizo judge_failure=True
             return {
                 "score": None,
                 "total_claims": 0,
@@ -246,14 +250,14 @@ class FaithfulnessEvaluator:
 
 class AnswerRelevancyEvaluator:
     """
-    Avaliador de Relevância da Resposta em relação à Pergunta do Usuário,
-    com suporte explícito a abstenção e parsing JSON resiliente.
+    Avalia se a resposta atende à pergunta do usuário sem desviar de assunto ou omitir pontos pedidos.
     """
 
     def __init__(self, ai_service: Optional[AIService] = None):
         self.ai_service = ai_service or AIService()
 
     def evaluate(self, question: str, answer: str) -> Dict[str, Any]:
+        """Avalia a pertinência da resposta em relação à pergunta original, retornando score de 0 a 1."""
         if not question or not answer:
             return {
                 "score": 0.0,
@@ -262,7 +266,7 @@ class AnswerRelevancyEvaluator:
                 "reasoning": "Pergunta ou resposta ausente.",
             }
 
-        # Abstenção válida é 100% relevante para casos fora de escopo
+        # Se a pergunta era fora de escopo e o modelo recusou corretamente, a resposta é considerada 100% relevante
         if is_valid_refusal(answer):
             return {
                 "score": 1.0,
@@ -282,6 +286,7 @@ class AnswerRelevancyEvaluator:
                 system_instruction="Você é um avaliador JSON estrito. Retorne apenas JSON válido sem formatação extra.",
             )
 
+            # Se a LLM avaliadora quebrar o formato JSON, preservo judge_failure para isolar erro do avaliador
             parsed = extract_json_safely(raw_response)
             if not parsed:
                 logger.warning(f"[AnswerRelevancyEvaluator] Falha de JSON do juiz. Raw: {raw_response[:100]}")
