@@ -49,7 +49,12 @@ class DocumentAgent:
         self.ai_service = ai_service or AIService()
         self.chat_repository = chat_repository
 
-    def _prepare_rag_context(self, request: ChatRequest, current_user: User):
+    def _prepare_rag_context(
+        self,
+        request: ChatRequest,
+        current_user: User,
+        thread_id: Optional[uuid.UUID] = None,
+    ):
         """Monta o prompt com trechos recuperados e histórico recente da conversa."""
         search_request = DocumentSearchRequest(
             query=request.message,
@@ -99,12 +104,30 @@ class DocumentAgent:
             context_text = "Nenhum trecho de documento relevante foi encontrado para esta consulta."
 
         history_text = ""
-        if request.history:
+        # 1. Se a persistência estiver ativa e houver uma thread, busca o histórico legítimo do banco de dados
+        # Isso impede que o payload do cliente forje turnos prévios atribuídos ao assistente
+        if self.chat_repository and thread_id:
+            db_messages = self.chat_repository.get_thread_messages(
+                thread_id=thread_id, owner_id=current_user.id
+            )
+            # A mensagem atual já foi persistida em add_message; os turnos anteriores são todas as mensagens exceto a última
+            prior_messages = db_messages[:-1] if len(db_messages) > 1 else []
+            if prior_messages:
+                formatted_history = []
+                for msg in prior_messages[-6:]:
+                    role_name = "Usuário" if msg.role == "user" else "Assistente"
+                    formatted_history.append(
+                        f"{role_name}: {SanitizationService.sanitize_text(msg.content)}"
+                    )
+                history_text = "Histórico da Conversa:\n" + "\n".join(formatted_history) + "\n\n"
+        elif self.chat_repository is None and request.history:
+            # Fallback exclusivo para instâncias desacopladas sem repositório (ex: testes unitários isolados)
             formatted_history = []
-            # Pego só as últimas 6 mensagens para manter contexto sem inflar demais o prompt
             for msg in request.history[-6:]:
                 role_name = "Usuário" if msg.role == "user" else "Assistente"
-                formatted_history.append(f"{role_name}: {SanitizationService.sanitize_text(msg.content)}")
+                formatted_history.append(
+                    f"{role_name}: {SanitizationService.sanitize_text(msg.content)}"
+                )
             history_text = "Histórico da Conversa:\n" + "\n".join(formatted_history) + "\n\n"
 
         sanitized_question = SanitizationService.sanitize_text(request.message)
@@ -151,7 +174,11 @@ class DocumentAgent:
                 content=request.message,
             )
 
-        full_prompt, citations = self._prepare_rag_context(request, current_user)
+        full_prompt, citations = self._prepare_rag_context(
+            request=request,
+            current_user=current_user,
+            thread_id=thread_id,
+        )
 
         answer = self.ai_service.generate_response(
             prompt=full_prompt,
@@ -212,7 +239,11 @@ class DocumentAgent:
                     content=request.message,
                 )
 
-            full_prompt, citations = self._prepare_rag_context(request, current_user)
+            full_prompt, citations = self._prepare_rag_context(
+                request=request,
+                current_user=current_user,
+                thread_id=thread_id,
+            )
 
             # Envio as citações no primeiro evento SSE para o frontend já montar os cards de fontes
             citations_data = [c.model_dump(mode="json") for c in citations]
