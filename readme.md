@@ -146,6 +146,13 @@ Copie o arquivo de exemplo para `.env` na raiz:
 cp .env.example .env
 ```
 
+> **Atenção sobre Portas**: Por padrão, o PostgreSQL (pgvector) é exposto na porta do host **`5434`** (mapeada para `5432` no container) para evitar conflitos com instâncias locais pré-existentes do PostgreSQL. Certifique-se de que `POSTGRES_PORT=5434` esteja configurado no seu `.env` e `.env.test`.
+
+Para execução de testes automatizados, você também pode criar `.env.test` a partir do template:
+```bash
+cp .env.test.example .env.test
+```
+
 Defina sua chave da API do Google AI Studio no `.env`:
 ```env
 GOOGLE_API_KEY=sua_chave_do_google_ai_studio_aqui
@@ -159,6 +166,14 @@ docker compose up -d --build
 ```
 * **Swagger UI (Documentação Interativa)**: `http://localhost:8000/docs`
 * **Redoc**: `http://localhost:8000/redoc`
+
+Para desenvolvimento Python local no host (opcional):
+```bash
+python -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
 ### 3. Iniciar a Aplicação Frontend
 Em outro terminal:
@@ -174,13 +189,13 @@ npm run dev
 
 ## 🧪 Execução de Testes e Benchmarks
  
- A plataforma conta com 61 testes automatizados (41 testes de unidade isolados e rápidos que executam sem banco de dados + 20 testes de integração que exigem instância ativa de PostgreSQL com pgvector):
+ A plataforma conta com **71 testes automatizados** no backend (testes de unidade isolados, testes de integração de busca e chunking, validações de autenticação e mitigação de vulnerabilidades OWASP/IDOR):
 
 ```bash
-# 1. Executar todos os testes isolados (sem necessidade de banco de dados)
-pytest backend/app/tests/test_evaluation_*.py backend/app/tests/test_sanitization.py backend/app/tests/test_parsing_service.py
+# 1. Executar testes isolados (sem necessidade de banco de dados ativo)
+pytest backend/app/tests/test_evaluation_metrics.py backend/app/tests/test_sanitization.py backend/app/tests/test_parsing_service.py
 
-# 2. Executar suíte completa com banco de dados Docker ativo
+# 2. Executar suíte completa com banco de dados ativo (PostgreSQL pgvector na porta 5434)
 pytest backend/app/tests/
 
 # 3. Executar o benchmark oficial de avaliação RAG via CLI (Baseline v1.2)
