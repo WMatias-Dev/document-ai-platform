@@ -29,7 +29,11 @@ def get_document_agent(
     doc_service: DocumentService = Depends(get_document_service),
     chat_repo: ChatRepository = Depends(get_chat_repository),
 ) -> DocumentAgent:
-    """Fábrica de injeção de dependência para o Agente RAG com persistência."""
+    """Fábrica de injeção de dependência para compor o Agente RAG.
+
+    Instancia o agente a cada requisição injetando o serviço de busca de documentos
+    e o repositório para persistência do histórico e citações.
+    """
     return DocumentAgent(document_service=doc_service, chat_repository=chat_repo)
 
 
@@ -42,11 +46,10 @@ def chat_stream_with_documents(
     current_user: User = Depends(get_current_user),
     agent: DocumentAgent = Depends(get_document_agent),
 ):
-    """
-    Transmite a resposta do Gemini em tempo real através de Server-Sent Events (SSE),
-    emitindo eventos 'citations', 'delta', 'done' e persistindo as mensagens no banco.
-    """
+    """Transmite a resposta da IA em tempo real com eventos SSE e persiste o diálogo."""
+    # O streaming reduz o Time To First Token (TTFT) percebido pelo usuário de segundos para milissegundos
     try:
+        # X-Accel-Buffering e Cache-Control instruem proxies reversos a não reter tokens parciais em buffer
         return StreamingResponse(
             agent.ask_stream(request=request, current_user=current_user),
             media_type="text/event-stream",
@@ -75,9 +78,8 @@ def chat_with_documents(
     current_user: User = Depends(get_current_user),
     agent: DocumentAgent = Depends(get_document_agent),
 ):
-    """
-    Envia uma mensagem para o assistente de IA de forma síncrona.
-    """
+    """Processa a pergunta de forma síncrona e retorna a resposta completa com fontes."""
+    # Alternativa simplificada para integrações backend-to-backend ou clientes sem suporte a SSE
     try:
         return agent.ask(request=request, current_user=current_user)
     except Exception as e:
@@ -98,9 +100,8 @@ def list_threads(
     current_user: User = Depends(get_current_user),
     chat_repo: ChatRepository = Depends(get_chat_repository),
 ):
-    """
-    Retorna a lista de todas as conversas ativas do usuário para um caderno ou globais.
-    """
+    """Retorna as sessões de chat do usuário autenticado, com filtro opcional por caderno."""
+    # O filtro por owner_id garante isolamento multi-tenant impedindo visualização de conversas de terceiros
     return chat_repo.list_threads(owner_id=current_user.id, notebook_id=notebook_id)
 
 
@@ -114,8 +115,7 @@ def get_thread_messages(
     current_user: User = Depends(get_current_user),
     chat_repo: ChatRepository = Depends(get_chat_repository),
 ):
-    """
-    Retorna todas as mensagens e citações salvas de uma thread no banco de dados.
-    """
+    """Recupera o histórico cronológico de mensagens e citações de uma thread do usuário."""
+    # O repositório valida thread_id em conjunto com owner_id para evitar vazamento por referência direta (IDOR)
     messages = chat_repo.get_thread_messages(thread_id=thread_id, owner_id=current_user.id)
     return messages
