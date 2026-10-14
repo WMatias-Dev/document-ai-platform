@@ -21,9 +21,15 @@ class AIService:
     Possui pool multi-modelo resiliente para tolerância a falhas (503) e limites de cota (429).
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        disable_fallback: bool = False,
+    ):
         self.api_key = api_key or settings.GOOGLE_API_KEY
         self.model_name = model or settings.GEMINI_MODEL
+        self.disable_fallback = disable_fallback
 
         if not self.api_key:
             logger.warning(
@@ -57,6 +63,7 @@ class AIService:
         """
         Gera uma resposta utilizando o pool de modelos Gemini, alternando automaticamente
         caso o modelo encontre sobrecarga (503) ou exaustão de cota (429).
+        Se disable_fallback for True, restringe a execução estritamente ao model_name configurado.
         """
         if not self.client:
             raise ValueError(
@@ -65,9 +72,12 @@ class AIService:
 
         config = self._build_config(system_instruction)
 
-        models_to_try = [self.model_name] + [
-            m for m in FALLBACK_MODELS if m != self.model_name
-        ]
+        if self.disable_fallback:
+            models_to_try = [self.model_name]
+        else:
+            models_to_try = [self.model_name] + [
+                m for m in FALLBACK_MODELS if m != self.model_name
+            ]
 
         last_error = None
         for candidate_model in models_to_try:
