@@ -19,10 +19,12 @@ class EvaluationTrace(BaseModel):
     model_used: str
     retrieved_chunk_count: int
     retrieved_snippets: List[str] = Field(default_factory=list)
-    recall_at_5: float
-    mrr_at_5: float
+    recall_at_5: Optional[float] = None
+    mrr_at_5: Optional[float] = None
     faithfulness_score: Optional[float] = None
     answer_relevancy_score: Optional[float] = None
+    is_abstention: bool = False
+    abstention_correct: Optional[bool] = None
     latency: LatencyBreakdown
     status: str = "SUCCESS"  # SUCCESS, ERROR, EMPTY_RETRIEVAL
     error_type: Optional[str] = None
@@ -34,6 +36,7 @@ class RAGQualityMetrics(BaseModel):
     mrr_at_5: Optional[float] = None
     faithfulness: Optional[float] = None
     answer_relevancy: Optional[float] = None
+    abstention_accuracy: Optional[float] = None
     judge_failures: int = 0
 
 
@@ -80,6 +83,7 @@ class EvaluationRun(BaseModel):
     chunk_overlap: int
     top_k: int
     error_count: Optional[int] = 0
+    notes: Optional[str] = None
     
     # Grupos de Métricas Oficiais
     rag_quality: RAGQualityMetrics
@@ -105,9 +109,11 @@ class EvaluationRunSummary(BaseModel):
     mrr_at_5: Optional[float]
     faithfulness: Optional[float]
     answer_relevancy: Optional[float]
+    abstention_accuracy: Optional[float] = None
     p50_latency_ms: Optional[float]
     p95_latency_ms: Optional[float]
     success_rate: Optional[float]
     empty_retrieval_rate: Optional[float]
     judge_failures: Optional[int] = 0
     error_count: Optional[int] = 0
+    notes: Optional[str] = None
