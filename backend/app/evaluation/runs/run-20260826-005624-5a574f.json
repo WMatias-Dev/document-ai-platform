@@ -1,7 +1,7 @@
 {
   "run_id": "run-20260826-005624-5a574f",
   "name": "Baseline v1.0 — Gemini 3.7 Flash",
-  "is_baseline": true,
+  "is_baseline": false,
   "timestamp": "2026-08-26T00:56:24.535224",
   "dataset_version": "contracts_eval_v1",
   "dataset_size": 5,

@@ -1,7 +1,7 @@
 {
   "run_id": "run-20260826-010923-af9c26",
   "name": "Baseline v1.1 — Calibrado com Warm-up",
-  "is_baseline": true,
+  "is_baseline": false,
   "timestamp": "2026-08-26T01:09:23.052194Z",
   "dataset_version": "contracts_eval_v1",
   "dataset_size": 6,

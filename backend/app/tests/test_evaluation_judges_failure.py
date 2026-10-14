@@ -125,3 +125,80 @@ def test_runner_records_judge_failures_and_excludes_from_average(tmp_path):
         assert hasattr(run_result.rag_quality, "judge_failures")
         assert run_result.rag_quality.judge_failures == 2
 
+
+def test_runner_all_judges_fail_returns_none_averages(tmp_path):
+    """
+    Caso de borda extremo: quando 100% dos juízes LLM falham ao parsear JSON,
+    as médias de faithfulness e answer_relevancy devem ser None (e não 0.0 ou erro),
+    e o total de judge_failures deve contabilizar todas as falhas.
+    """
+    import json
+    import uuid
+    from unittest.mock import patch
+    from app.database.models.user import User
+    from app.evaluation.runner import run_evaluation
+    from app.schemas.document_schema import DocumentSearchResponse, SearchResultChunk
+
+    dataset_file = tmp_path / "test_dataset.json"
+    dataset_content = [
+        {
+            "id": "q1",
+            "question": "Pergunta 1",
+            "expected_answer": "Resp 1",
+            "canonical_text_snippets": ["snippet 1"],
+        },
+        {
+            "id": "q2",
+            "question": "Pergunta 2",
+            "expected_answer": "Resp 2",
+            "canonical_text_snippets": ["snippet 2"],
+        },
+    ]
+    dataset_file.write_text(json.dumps(dataset_content), encoding="utf-8")
+
+    mock_doc_service = MagicMock()
+    mock_chunk = SearchResultChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        document_title="Doc.pdf",
+        chunk_index=0,
+        text_content="snippet 1 e 2",
+        similarity_score=0.9,
+    )
+    mock_doc_service.search_documents.return_value = DocumentSearchResponse(
+        query="q", total_results=1, results=[mock_chunk]
+    )
+
+    test_user = User(id=uuid.uuid4(), name="Tester", email="tester@test.com", password_hash="hash")
+
+    with patch("app.evaluation.runner.AIService") as mock_ai_class, \
+         patch("app.evaluation.runner.FaithfulnessEvaluator") as mock_faith_class, \
+         patch("app.evaluation.runner.AnswerRelevancyEvaluator") as mock_rel_class:
+
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.model_name = "gemini-3.5-flash"
+        mock_ai_instance.generate_response.return_value = "Resposta gerada"
+        mock_ai_class.return_value = mock_ai_instance
+
+        mock_faith_inst = MagicMock()
+        mock_faith_inst.evaluate.return_value = {"score": None, "judge_failure": True}
+        mock_faith_class.return_value = mock_faith_inst
+
+        mock_rel_inst = MagicMock()
+        mock_rel_inst.evaluate.return_value = {"score": None, "judge_failure": True}
+        mock_rel_class.return_value = mock_rel_inst
+
+        run_result = run_evaluation(
+            dataset_path=dataset_file,
+            run_name="Test 100% Judge Failure Edge Case",
+            evaluate_llm_judges=True,
+            perform_warmup=False,
+            current_user=test_user,
+            document_service=mock_doc_service,
+            runs_dir=tmp_path / "runs",
+        )
+
+        assert run_result.rag_quality.faithfulness is None
+        assert run_result.rag_quality.answer_relevancy is None
+        assert run_result.rag_quality.judge_failures == 4
+

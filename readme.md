@@ -174,7 +174,7 @@ npm run dev
 
 ## 🧪 Execução de Testes e Benchmarks
  
- A plataforma conta com 54 testes automatizados (34 testes de unidade isolados e rápidos que executam sem banco de dados + 20 testes de integração que exigem instância ativa de PostgreSQL com pgvector):
+ A plataforma conta com 61 testes automatizados (41 testes de unidade isolados e rápidos que executam sem banco de dados + 20 testes de integração que exigem instância ativa de PostgreSQL com pgvector):
 
 ```bash
 # 1. Executar todos os testes isolados (sem necessidade de banco de dados)

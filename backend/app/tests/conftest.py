@@ -34,7 +34,9 @@ DATABASE_TEST_URL = (
     f"{settings.POSTGRES_DB}"
 )
 
-engine_test = create_engine(DATABASE_TEST_URL)
+from sqlalchemy.pool import NullPool
+
+engine_test = create_engine(DATABASE_TEST_URL, poolclass=NullPool)
 
 TestingSessionLocal = sessionmaker(
     autocommit=False,
@@ -67,15 +69,14 @@ def db_session():
     finally:
         session.close()
         app.dependency_overrides.clear()
+        engine_test.dispose()
         Base.metadata.drop_all(bind=engine_test)
 
 
 @pytest.fixture(scope="function")
-def client():
+def client(db_session):
     """Cliente HTTP para testar a API."""
-
-    with TestClient(app) as test_client:
-        yield test_client
+    return TestClient(app)
 
 @pytest.fixture(scope="function")
 def user_token_headers(client):

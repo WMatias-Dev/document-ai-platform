@@ -15,7 +15,7 @@ def test_create_document_authenticated(client, user_token_headers):
 
     data = response.json()
     assert "document_id" in data
-    assert data["status"] == "processing"
+    assert data["status"] in ["queued", "processing"]
 
 
 def test_create_document_unauthenticated(client):

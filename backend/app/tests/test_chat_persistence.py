@@ -12,39 +12,30 @@ from app.repositories.chat_repository import ChatRepository
 
 
 @pytest.fixture
-def db_session():
-    # SQLite em memória para teste isolado
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    # Cria usuário de teste
+def chat_session(db_session):
     test_user = User(
         id=uuid.uuid4(),
         name="Tester",
-        email="test@documentai.com",
+        email="test_persistence@documentai.com",
         password_hash="fakehash12345678",
     )
-    session.add(test_user)
+    db_session.add(test_user)
 
-    # Cria caderno de teste
     test_notebook = Notebook(
         id=uuid.uuid4(),
         title="Caderno de Testes",
         owner_id=test_user.id,
     )
-    session.add(test_notebook)
-    session.commit()
+    db_session.add(test_notebook)
+    db_session.commit()
 
-    yield session
-    session.close()
+    yield db_session
 
 
-def test_chat_thread_creation_and_persistence(db_session):
-    repo = ChatRepository(db_session)
-    user = db_session.query(User).first()
-    notebook = db_session.query(Notebook).first()
+def test_chat_thread_creation_and_persistence(chat_session):
+    repo = ChatRepository(chat_session)
+    user = chat_session.query(User).filter(User.email == "test_persistence@documentai.com").first()
+    notebook = chat_session.query(Notebook).first()
 
     # 1. Cria ou obtém thread
     thread = repo.get_or_create_thread(
