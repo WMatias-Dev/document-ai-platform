@@ -59,6 +59,8 @@ def chat_stream_with_documents(
                 "X-Accel-Buffering": "no",
             },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Erro ao iniciar streaming do chat RAG: {e}", exc_info=True)
         raise HTTPException(
@@ -82,6 +84,8 @@ def chat_with_documents(
     # Alternativa simplificada para integrações backend-to-backend ou clientes sem suporte a SSE
     try:
         return agent.ask(request=request, current_user=current_user)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Erro no processamento do chat RAG: {e}", exc_info=True)
         raise HTTPException(

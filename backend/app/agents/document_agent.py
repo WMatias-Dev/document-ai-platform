@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Generator, List, Optional
 import uuid
+from fastapi import HTTPException, status
 
 from app.database.models.user import User
 from app.repositories.chat_repository import ChatRepository
@@ -125,16 +126,25 @@ class DocumentAgent:
             f"[DocumentAgent] Pergunta síncrona do usuário {current_user.email}: '{request.message}'"
         )
 
-        # Se não veio thread_id, crio uma conversa nova usando o início da pergunta como título
         thread_id = request.thread_id
         if self.chat_repository:
-            if not thread_id:
+            if thread_id:
+                thread = self.chat_repository.get_thread_by_id(
+                    thread_id=thread_id, owner_id=current_user.id
+                )
+                if not thread:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Conversa não encontrada.",
+                    )
+            else:
                 thread = self.chat_repository.get_or_create_thread(
                     owner_id=current_user.id,
                     notebook_id=request.notebook_id,
                     title=request.message[:40],
                 )
                 thread_id = thread.id
+
             self.chat_repository.add_message(
                 thread_id=thread_id,
                 role="user",
@@ -174,66 +184,80 @@ class DocumentAgent:
             f"[DocumentAgent] Pergunta streaming do usuário {current_user.email}: '{request.message}'"
         )
 
-        # Persisto a pergunta antes de chamar o modelo para não perder a mensagem se o streaming falhar
         thread_id = request.thread_id
-        if self.chat_repository:
-            if not thread_id:
-                thread = self.chat_repository.get_or_create_thread(
-                    owner_id=current_user.id,
-                    notebook_id=request.notebook_id,
-                    title=request.message[:40],
-                )
-                thread_id = thread.id
-            self.chat_repository.add_message(
-                thread_id=thread_id,
-                role="user",
-                content=request.message,
-            )
-
-        full_prompt, citations = self._prepare_rag_context(request, current_user)
-
-        # Envio as citações no primeiro evento SSE para o frontend já montar os cards de fontes
-        citations_data = [c.model_dump(mode="json") for c in citations]
-        yield f"event: citations\ndata: {json.dumps(citations_data, ensure_ascii=False)}\n\n"
-
-        # Vou acumulando os pedaços de texto para salvar a resposta completa no banco ao término
-        accumulated_text = []
-        try:
-            for token in self.ai_service.generate_response_stream(
-                prompt=full_prompt,
-                system_instruction=SYSTEM_PROMPT,
-            ):
-                accumulated_text.append(token)
-                delta_payload = json.dumps({"text": token}, ensure_ascii=False)
-                yield f"event: delta\ndata: {delta_payload}\n\n"
-        except Exception as e:
-            # Em caso de erro na API do modelo, notifico o cliente para ele fechar a conexão no frontend
-            logger.error(f"[DocumentAgent] Erro durante streaming: {e}", exc_info=True)
-            err_payload = json.dumps({"error": str(e)}, ensure_ascii=False)
-            yield f"event: error\ndata: {err_payload}\n\n"
-            return
-
-        final_answer = "".join(accumulated_text)
-
-        # TODO: se o cliente fechar a aba no meio da resposta, o gerador pode ser cortado antes daqui
-        message_id_str = ""
         if self.chat_repository and thread_id:
-            assistant_msg = self.chat_repository.add_message(
-                thread_id=thread_id,
-                role="assistant",
-                content=final_answer,
-                citations=citations_data,
-                model_used=self.ai_service.model_name,
+            thread = self.chat_repository.get_thread_by_id(
+                thread_id=thread_id, owner_id=current_user.id
             )
-            message_id_str = str(assistant_msg.id)
+            if not thread:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Conversa não encontrada.",
+                )
 
-        # O evento done fecha o fluxo e devolve os identificadores para o cliente sincronizar o estado
-        done_payload = json.dumps(
-            {
-                "thread_id": str(thread_id) if thread_id else None,
-                "message_id": message_id_str,
-                "model": self.ai_service.model_name,
-            },
-            ensure_ascii=False,
-        )
-        yield f"event: done\ndata: {done_payload}\n\n"
+        def _stream_generator() -> Generator[str, None, None]:
+            nonlocal thread_id
+            # Persisto a pergunta antes de chamar o modelo para não perder a mensagem se o streaming falhar
+            if self.chat_repository:
+                if not thread_id:
+                    thread = self.chat_repository.get_or_create_thread(
+                        owner_id=current_user.id,
+                        notebook_id=request.notebook_id,
+                        title=request.message[:40],
+                    )
+                    thread_id = thread.id
+                self.chat_repository.add_message(
+                    thread_id=thread_id,
+                    role="user",
+                    content=request.message,
+                )
+
+            full_prompt, citations = self._prepare_rag_context(request, current_user)
+
+            # Envio as citações no primeiro evento SSE para o frontend já montar os cards de fontes
+            citations_data = [c.model_dump(mode="json") for c in citations]
+            yield f"event: citations\ndata: {json.dumps(citations_data, ensure_ascii=False)}\n\n"
+
+            # Vou acumulando os pedaços de texto para salvar a resposta completa no banco ao término
+            accumulated_text = []
+            try:
+                for token in self.ai_service.generate_response_stream(
+                    prompt=full_prompt,
+                    system_instruction=SYSTEM_PROMPT,
+                ):
+                    accumulated_text.append(token)
+                    delta_payload = json.dumps({"text": token}, ensure_ascii=False)
+                    yield f"event: delta\ndata: {delta_payload}\n\n"
+            except Exception as e:
+                # Em caso de erro na API do modelo, notifico o cliente para ele fechar a conexão no frontend
+                logger.error(f"[DocumentAgent] Erro durante streaming: {e}", exc_info=True)
+                err_payload = json.dumps({"error": str(e)}, ensure_ascii=False)
+                yield f"event: error\ndata: {err_payload}\n\n"
+                return
+
+            final_answer = "".join(accumulated_text)
+
+            # TODO: se o cliente fechar a aba no meio da resposta, o gerador pode ser cortado antes daqui
+            message_id_str = ""
+            if self.chat_repository and thread_id:
+                assistant_msg = self.chat_repository.add_message(
+                    thread_id=thread_id,
+                    role="assistant",
+                    content=final_answer,
+                    citations=citations_data,
+                    model_used=self.ai_service.model_name,
+                )
+                message_id_str = str(assistant_msg.id)
+
+            # O evento done fecha o fluxo e devolve os identificadores para o cliente sincronizar o estado
+            done_payload = json.dumps(
+                {
+                    "thread_id": str(thread_id) if thread_id else None,
+                    "message_id": message_id_str,
+                    "model": self.ai_service.model_name,
+                },
+                ensure_ascii=False,
+            )
+            yield f"event: done\ndata: {done_payload}\n\n"
+
+        return _stream_generator()
