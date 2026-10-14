@@ -66,6 +66,7 @@ def test_runner_executes_real_retrieval(tmp_path):
             perform_warmup=False,
             current_user=test_user,
             document_service=mock_doc_service,
+            runs_dir=tmp_path / "runs",
         )
 
         # 4. Asserções
@@ -181,6 +182,7 @@ def test_runner_records_real_models_real_chunks_and_error_count(tmp_path):
             perform_warmup=False,
             current_user=test_user,
             document_service=mock_doc_service,
+            runs_dir=tmp_path / "runs",
         )
 
         assert run_result.generator_model == "gemini-3.5-flash"
@@ -236,3 +238,57 @@ def test_runner_aborts_when_all_retrievals_are_empty(tmp_path):
                 current_user=test_user,
                 document_service=mock_doc_service,
             )
+
+
+def test_runner_saves_to_custom_runs_dir_and_isolates_storage(tmp_path):
+    """
+    Garante que os testes de unidade podem passar runs_dir=tmp_path para o runner,
+    gravando exclusivamente no diretório temporário e nunca em evaluation/runs/.
+    """
+    dataset_file = tmp_path / "test_dataset.json"
+    dataset_content = [
+        {
+            "id": "q1",
+            "question": "Pergunta 1",
+            "expected_answer": "Resp 1",
+            "canonical_text_snippets": ["snippet 1"],
+        }
+    ]
+    dataset_file.write_text(json.dumps(dataset_content), encoding="utf-8")
+
+    mock_doc_service = MagicMock()
+    mock_chunk = SearchResultChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        document_title="Doc.pdf",
+        chunk_index=0,
+        text_content="snippet 1",
+        similarity_score=0.9,
+    )
+    mock_doc_service.search_documents.return_value = DocumentSearchResponse(
+        query="q", total_results=1, results=[mock_chunk]
+    )
+
+    test_user = User(id=uuid.uuid4(), name="Tester", email="tester@test.com", password_hash="hash")
+    isolated_runs_dir = tmp_path / "isolated_runs"
+
+    with patch("app.evaluation.runner.AIService") as mock_ai_class:
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.model_name = "gemini-3.5-flash"
+        mock_ai_instance.generate_response.return_value = "Resp"
+        mock_ai_class.return_value = mock_ai_instance
+
+        run_result = run_evaluation(
+            dataset_path=dataset_file,
+            run_name="Test Isolated Run Storage",
+            evaluate_llm_judges=False,
+            perform_warmup=False,
+            current_user=test_user,
+            document_service=mock_doc_service,
+            runs_dir=isolated_runs_dir,
+        )
+
+        assert isolated_runs_dir.exists()
+        saved_files = list(isolated_runs_dir.glob("*.json"))
+        assert len(saved_files) == 1
+        assert saved_files[0].name == f"{run_result.run_id}.json"

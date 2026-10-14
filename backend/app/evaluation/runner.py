@@ -67,6 +67,7 @@ def run_evaluation(
     document_service: Optional[DocumentService] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    runs_dir: Optional[Path] = None,
 ) -> EvaluationRun:
     """
     Executa a avaliação REAL do RAG sobre um dataset canônico de ground truth,
@@ -382,7 +383,7 @@ def run_evaluation(
         traces=traces,
     )
 
-    storage = EvaluationStorage()
+    storage = EvaluationStorage(runs_dir=runs_dir)
     saved_path = storage.save_run(eval_run)
     logger.info(f"Avaliação real concluída e persistida em: {saved_path}")
 

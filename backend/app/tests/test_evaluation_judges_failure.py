@@ -115,6 +115,7 @@ def test_runner_records_judge_failures_and_excludes_from_average(tmp_path):
             perform_warmup=False,
             current_user=test_user,
             document_service=mock_doc_service,
+            runs_dir=tmp_path / "runs",
         )
 
         # Média deve ser calculada apenas sobre o caso válido (0.8 e 0.9), ignorando None
