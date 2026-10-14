@@ -13,11 +13,20 @@ REFUSAL_PATTERNS = [
     r"não foi encontrad[oa]",
     r"não foram encontrad[oa]s",
     r"não encontrei",
-    r"não há menção",
-    r"informação não disponível",
-    r"informação ausente",
+    r"não localizei",
+    r"não foi possível localizar",
+    r"não há (?:nenhuma |qualquer )?menção",
+    r"não há (?:nenhuma |qualquer )?informação",
+    r"informação (?:não está |não se encontra )?disponível",
+    r"informação .*?ausente",
+    r"está ausente",
     r"não foram fornecidas informações",
     r"não possui informações",
+    r"não aborda",
+    r"não é mencionad[oa]",
+    r"não são mencionad[oa]s",
+    r"não contém",
+    r"documento[s]? não trata[m]?",
 ]
 
 

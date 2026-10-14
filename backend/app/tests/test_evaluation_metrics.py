@@ -123,3 +123,28 @@ def test_reliability_stats_deterministic():
     zero_res = calculate_reliability_stats(0, 0, 0, 0)
     assert zero_res["total_requests"] == 0
     assert zero_res["success_rate"] is None
+
+
+def test_is_valid_refusal_patterns():
+    from app.evaluation.judges import is_valid_refusal
+
+    # 6 formulações reais de recusa válida que o LLM pode redigir
+    refusals = [
+        "Com base nos documentos, não há nenhuma menção sobre a alíquota de ICMS.",
+        "Esta informação não consta nos contratos fornecidos pelo usuário.",
+        "Não foi encontrada qualquer informação a respeito de substituição tributária.",
+        "A informação solicitada está ausente no contexto documental.",
+        "O contrato não aborda o regime tributário incidente sobre as faturas.",
+        "Não localizei nenhuma cláusula referente a impostos estaduais.",
+    ]
+
+    for phr in refusals:
+        assert is_valid_refusal(phr) is True, f"Deveria reconhecer como recusa: '{phr}'"
+
+    # Contra-exemplos: respostas afirmativas ou alucinações não devem ser consideradas recusa
+    affirmative = [
+        "A alíquota de ICMS aplicável é de 18% conforme faturamento mensal.",
+        "O contrato possui vigência de 12 meses com renovação automática.",
+    ]
+    for phr in affirmative:
+        assert is_valid_refusal(phr) is False, f"Não deveria reconhecer como recusa: '{phr}'"
