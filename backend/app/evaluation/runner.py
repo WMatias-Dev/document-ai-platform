@@ -38,10 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 def _warmup_pipeline(ai_service: AIService) -> None:
-    """
-    Executa uma requisição de aquecimento (warm-up) para inicializar a conexão SSL/TLS
-    com a API do Gemini e carregar os pesos na memória, eliminando a latência de Cold Start.
-    """
+    """Faz uma requisição simples antes do teste para abrir conexões de rede e não distorcer a latência."""
     logger.info("[Warmup] Executando requisição de aquecimento para eliminar Cold Start...")
     try:
         t0 = time.perf_counter()
@@ -69,10 +66,7 @@ def run_evaluation(
     chunk_overlap: Optional[int] = None,
     runs_dir: Optional[Path] = None,
 ) -> EvaluationRun:
-    """
-    Executa a avaliação REAL do RAG sobre um dataset canônico de ground truth,
-    medindo busca híbrida e reranking reais, cronometrando latências exatas e avaliando com juízes LLM.
-    """
+    """Roda a bateria de testes de RAG sobre um dataset, calcula métricas de busca/geração e salva o relatório."""
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset não encontrado em: {dataset_path}")
 
@@ -85,7 +79,7 @@ def run_evaluation(
     created_db = False
     doc_service = document_service
 
-    # Inicializa sessão e serviço de busca real caso não tenham sido injetados
+    # Crio a sessão do banco se não recebi o serviço pronto; se falhar, o runner continua mas não recupera trechos
     if doc_service is None:
         try:
             db = SessionLocal()
@@ -95,7 +89,7 @@ def run_evaluation(
             logger.warning(f"[run_evaluation] Não foi possível conectar ao banco de dados: {db_err}. Operando em modo de contingência.")
             doc_service = None
 
-    # Determina o usuário para contexto de busca
+    # Uso um usuário fixo de avaliação para passar pelo filtro de tenancy do repositório de documentos
     eval_user = current_user
     if eval_user is None and db is not None:
         try:
@@ -117,10 +111,11 @@ def run_evaluation(
 
     ai_service = AIService()
 
-    # 1. Warm-up automático de conexão
+    # Faço a chamada de aquecimento para que o tempo do primeiro caso não inclua o handshake SSL
     if perform_warmup:
         _warmup_pipeline(ai_service)
 
+    # Juízes que usam a própria LLM para checar fidelidade ao contexto e pertinência da resposta
     faithfulness_judge = FaithfulnessEvaluator(ai_service=ai_service)
     relevancy_judge = AnswerRelevancyEvaluator(ai_service=ai_service)
 
@@ -148,13 +143,13 @@ def run_evaluation(
 
             logger.info(f"[{idx}/{len(test_cases)}] Executando caso {q_id}: '{question[:50]}...'")
 
-            # Pausa para controle de taxa
+            # Pausa curta entre perguntas para não estourar o limite de requisições por minuto da API
             if idx > 1:
                 time.sleep(0.3)
 
             t_total_start = time.perf_counter()
 
-            # 2. Retrieval REAL com cronometragem de alta precisão
+            # Meço o tempo da busca separado para isolar lentidão de embeddings/banco do tempo da LLM
             t_ret_start = time.perf_counter()
             retrieved_chunks: List[str] = []
 
@@ -183,7 +178,7 @@ def run_evaluation(
             if not retrieved_chunks:
                 empty_retrieval_count += 1
 
-            # 3. Geração LLM Real com Gemini
+            # Geração da resposta usando os trechos encontrados como contexto
             t_gen_start = time.perf_counter()
             if retrieved_chunks:
                 context_str = "\n".join(f"- {c}" for c in retrieved_chunks)
@@ -206,6 +201,7 @@ def run_evaluation(
                 error_type = None
                 error_msg = None
             except Exception as e:
+                # Se o modelo falhar, marco erro na requisição e zero a pontuação de qualidade desse caso
                 generated_answer = ""
                 status = "ERROR"
                 failed_count += 1
@@ -222,23 +218,22 @@ def run_evaluation(
             total_latency_ms = round((t_total_end - t_total_start) * 1000.0, 2)
             total_latencies.append(total_latency_ms)
 
-            # 4. Cálculo de Métricas com penalização estrita de falhas
+            # Cálculo de métricas: penalizo com zero se houve erro de execução na chamada
             if status == "ERROR":
                 recall = 0.0
                 mrr = 0.0
                 faith_score = 0.0
                 rel_score = 0.0
             else:
-                # Métricas de Retrieval reais
                 if canonical_snippets:
                     recall = calculate_recall_at_k(retrieved_chunks, canonical_snippets, k=top_k)
                     mrr = calculate_mrr_at_k(retrieved_chunks, canonical_snippets, k=top_k)
                 else:
-                    # Caso negativo (out of scope): se o modelo fez recusa correta, pontua 1.0
+                    # Casos sem trechos esperados testam recusa (pergunta fora do escopo); se recusou, pontua 1.0
                     recall = 1.0 if is_valid_refusal(generated_answer) else 0.0
                     mrr = 1.0 if is_valid_refusal(generated_answer) else 0.0
 
-                # 5. Juízes de Qualidade (Faithfulness & Answer Relevancy)
+                # Avaliação por juízes LLM
                 faith_score = None
                 rel_score = None
                 if evaluate_llm_judges:
@@ -247,6 +242,7 @@ def run_evaluation(
                         context_chunks=retrieved_chunks,
                     )
                     faith_score = faith_res.get("score")
+                    # Se o juiz quebrar o formato JSON ou der timeout, conto a falha sem derrubar o teste
                     if faith_res.get("judge_failure") or faith_score is None:
                         judge_failures_count += 1
 
@@ -296,13 +292,14 @@ def run_evaluation(
             except Exception:
                 pass
 
+    # Aborto se 100% das buscas vierem vazias, porque indica banco não populado ou erro de infraestrutura
     if empty_retrieval_count == len(test_cases) and len(test_cases) > 0:
         raise RuntimeError(
             f"Avaliação abortada: 100% das consultas ({empty_retrieval_count}/{len(test_cases)}) "
             "retornaram retrieval vazio. Nenhum documento relevante indexado no banco."
         )
 
-    # 6. Agregação Estatística Consolidada
+    # Agrego percentis de latência e taxas de confiabilidade da execução
     perf_stats = calculate_percentiles(total_latencies)
     reliability_stats = calculate_reliability_stats(
         total_requests=len(test_cases),
@@ -314,6 +311,7 @@ def run_evaluation(
 
     avg_recall = round(sum(recalls) / len(recalls), 4) if recalls else None
     avg_mrr = round(sum(mrrs) / len(mrrs), 4) if mrrs else None
+    # TODO: se a lista de scores do juiz for vazia por falhas totais, a média fica None em vez de zero
     avg_faith = round(sum(faithfulness_scores) / len(faithfulness_scores), 4) if faithfulness_scores else None
     avg_rel = round(sum(relevancy_scores) / len(relevancy_scores), 4) if relevancy_scores else None
 
@@ -383,6 +381,7 @@ def run_evaluation(
         traces=traces,
     )
 
+    # Salvo o resultado em arquivo JSON para comparar o histórico contra o baseline
     storage = EvaluationStorage(runs_dir=runs_dir)
     saved_path = storage.save_run(eval_run)
     logger.info(f"Avaliação real concluída e persistida em: {saved_path}")
