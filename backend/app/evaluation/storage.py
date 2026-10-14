@@ -72,6 +72,7 @@ class EvaluationStorage:
                         p95_latency_ms=run.performance.p95_ms,
                         success_rate=run.reliability.success_rate,
                         empty_retrieval_rate=run.reliability.empty_retrieval_rate,
+                        judge_failures=getattr(run.rag_quality, "judge_failures", 0),
                     )
                 )
             except Exception as e:

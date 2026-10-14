@@ -34,6 +34,7 @@ class RAGQualityMetrics(BaseModel):
     mrr_at_5: Optional[float] = None
     faithfulness: Optional[float] = None
     answer_relevancy: Optional[float] = None
+    judge_failures: int = 0
 
 
 class PerformanceMetrics(BaseModel):
@@ -103,3 +104,4 @@ class EvaluationRunSummary(BaseModel):
     p95_latency_ms: Optional[float]
     success_rate: Optional[float]
     empty_retrieval_rate: Optional[float]
+    judge_failures: Optional[int] = 0

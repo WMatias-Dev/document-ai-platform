@@ -133,6 +133,7 @@ def run_evaluation(
     successful_count = 0
     failed_count = 0
     empty_retrieval_count = 0
+    judge_failures_count = 0
     error_breakdown: Dict[str, int] = {}
 
     try:
@@ -242,13 +243,17 @@ def run_evaluation(
                         answer=generated_answer,
                         context_chunks=retrieved_chunks,
                     )
-                    faith_score = faith_res.get("score", 0.0)
+                    faith_score = faith_res.get("score")
+                    if faith_res.get("judge_failure") or faith_score is None:
+                        judge_failures_count += 1
 
                     rel_res = relevancy_judge.evaluate(
                         question=question,
                         answer=generated_answer,
                     )
-                    rel_score = rel_res.get("score", 0.0)
+                    rel_score = rel_res.get("score")
+                    if rel_res.get("judge_failure") or rel_score is None:
+                        judge_failures_count += 1
 
             recalls.append(recall)
             mrrs.append(mrr)
@@ -323,6 +328,7 @@ def run_evaluation(
             mrr_at_5=avg_mrr,
             faithfulness=avg_faith,
             answer_relevancy=avg_rel,
+            judge_failures=judge_failures_count,
         ),
         performance=PerformanceMetrics(
             sample_count=perf_stats["count"],

@@ -188,24 +188,25 @@ class FaithfulnessEvaluator:
 
             parsed = extract_json_safely(raw_response)
             if not parsed:
-                # Fallback resiliente: se falhou o JSON mas a resposta cita trechos literais
-                logger.warning(f"[FaithfulnessEvaluator] Falha de JSON, aplicando fallback. Raw: {raw_response[:100]}")
+                logger.warning(f"[FaithfulnessEvaluator] Falha de JSON do juiz. Raw: {raw_response[:100]}")
                 return {
-                    "score": 1.0,
-                    "total_claims": 1,
-                    "supported_claims": 1,
+                    "score": None,
+                    "total_claims": 0,
+                    "supported_claims": 0,
                     "claims": [],
-                    "reasoning": "Avaliação consolidada via fallback.",
+                    "reasoning": "Falha do juiz: resposta não continha JSON válido.",
+                    "judge_failure": True,
                 }
 
             claims = parsed.get("claims", [])
             if not claims:
                 return {
-                    "score": 1.0,
+                    "score": None,
                     "total_claims": 0,
                     "supported_claims": 0,
                     "claims": [],
-                    "reasoning": parsed.get("reasoning", "Nenhuma afirmação factual isolada."),
+                    "reasoning": parsed.get("reasoning", "Falha do juiz: nenhuma afirmação factual isolada."),
+                    "judge_failure": True,
                 }
 
             supported_count = sum(1 for c in claims if c.get("supported") is True)
@@ -218,6 +219,7 @@ class FaithfulnessEvaluator:
                 "supported_claims": supported_count,
                 "claims": claims,
                 "reasoning": parsed.get("reasoning", ""),
+                "judge_failure": False,
             }
 
         except Exception as e:
@@ -230,13 +232,15 @@ class FaithfulnessEvaluator:
                     "supported_claims": 0,
                     "claims": [],
                     "reasoning": "Abstenção correta validada com segurança.",
+                    "judge_failure": False,
                 }
             return {
-                "score": 0.0,
-                "total_claims": 1,
+                "score": None,
+                "total_claims": 0,
                 "supported_claims": 0,
                 "claims": [],
                 "reasoning": f"Falha na execução do juiz LLM: {str(e)}",
+                "judge_failure": True,
             }
 
 
@@ -280,12 +284,13 @@ class AnswerRelevancyEvaluator:
 
             parsed = extract_json_safely(raw_response)
             if not parsed:
-                # Fallback se a resposta tiver conteúdo substancial
+                logger.warning(f"[AnswerRelevancyEvaluator] Falha de JSON do juiz. Raw: {raw_response[:100]}")
                 return {
-                    "score": 0.95,
-                    "is_complete": True,
+                    "score": None,
+                    "is_complete": False,
                     "evasion_detected": False,
-                    "reasoning": "Relevância validada via fallback heurístico.",
+                    "reasoning": "Falha do juiz: resposta não continha JSON válido.",
+                    "judge_failure": True,
                 }
 
             score = float(parsed.get("score", 0.0))
@@ -295,13 +300,15 @@ class AnswerRelevancyEvaluator:
                 "is_complete": bool(parsed.get("is_complete", True)),
                 "evasion_detected": bool(parsed.get("evasion_detected", False)),
                 "reasoning": parsed.get("reasoning", ""),
+                "judge_failure": False,
             }
 
         except Exception as e:
             logger.error(f"[AnswerRelevancyEvaluator] Erro na avaliação: {e}", exc_info=True)
             return {
-                "score": 0.0,
+                "score": None,
                 "is_complete": False,
                 "evasion_detected": True,
                 "reasoning": f"Falha no juiz de relevância: {str(e)}",
+                "judge_failure": True,
             }
