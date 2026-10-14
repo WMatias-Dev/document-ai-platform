@@ -156,3 +156,49 @@ def test_chat_authorization_owner_and_idor_prevention(
     ghost_stream_resp = client.post("/chat/stream", json=nonexistent_payload, headers=user_token_headers)
     assert ghost_stream_resp.status_code == status.HTTP_404_NOT_FOUND
     assert "Conversa não encontrada" in ghost_stream_resp.json()["detail"]
+
+
+def test_get_thread_messages_authorization_returns_404_for_unauthorized_or_missing(
+    client, db_session: Session, user_token_headers, other_user_token_headers
+):
+    """
+    Testa que GET /chat/threads/{thread_id}/messages retorna 404 em vez de 200 []
+    quando a thread não existe ou pertence a outro usuário.
+    """
+    owner_user = db_session.query(User).filter(User.email == "teste@exemplo.com").first()
+    attacker_user = db_session.query(User).filter(User.email == "invasor@exemplo.com").first()
+
+    chat_repo = ChatRepository(db_session)
+    victim_thread = chat_repo.get_or_create_thread(
+        owner_id=owner_user.id,
+        title="Thread Privada para Leitura",
+    )
+    chat_repo.add_message(
+        thread_id=victim_thread.id,
+        role="user",
+        content="Pergunta privada do dono",
+    )
+
+    # 1. Proprietário acessa histórico com sucesso (200 OK)
+    owner_resp = client.get(
+        f"/chat/threads/{victim_thread.id}/messages", headers=user_token_headers
+    )
+    assert owner_resp.status_code == status.HTTP_200_OK
+    messages_data = owner_resp.json()
+    assert len(messages_data) == 1
+    assert messages_data[0]["content"] == "Pergunta privada do dono"
+
+    # 2. Outro usuário tenta ler histórico de thread alheia -> 404 Not Found (não 200 [])
+    attacker_resp = client.get(
+        f"/chat/threads/{victim_thread.id}/messages", headers=other_user_token_headers
+    )
+    assert attacker_resp.status_code == status.HTTP_404_NOT_FOUND
+    assert "Conversa não encontrada" in attacker_resp.json()["detail"]
+
+    # 3. Thread inexistente -> 404 Not Found
+    ghost_id = str(uuid.uuid4())
+    ghost_resp = client.get(
+        f"/chat/threads/{ghost_id}/messages", headers=user_token_headers
+    )
+    assert ghost_resp.status_code == status.HTTP_404_NOT_FOUND
+    assert "Conversa não encontrada" in ghost_resp.json()["detail"]

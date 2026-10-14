@@ -120,6 +120,10 @@ def get_thread_messages(
     chat_repo: ChatRepository = Depends(get_chat_repository),
 ):
     """Recupera o histórico cronológico de mensagens e citações de uma thread do usuário."""
-    # O repositório valida thread_id em conjunto com owner_id para evitar vazamento por referência direta (IDOR)
-    messages = chat_repo.get_thread_messages(thread_id=thread_id, owner_id=current_user.id)
-    return messages
+    thread = chat_repo.get_thread_by_id(thread_id=thread_id, owner_id=current_user.id)
+    if not thread:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversa não encontrada.",
+        )
+    return chat_repo.get_thread_messages(thread_id=thread_id, owner_id=current_user.id)
