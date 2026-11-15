@@ -130,7 +130,7 @@ A plataforma conta com um subsistema nativo de testes de avaliação offline bas
 
 Antes de analisar as métricas, é fundamental considerar as seguintes características metodológicas desta execução:
 
-* **Tamanho Amostral Restrito ($N=6$)**: A bateria utiliza o dataset canônico `contracts_eval_v1.json`, composto por 5 perguntas factuais sobre cláusulas contratuais e 1 caso de teste negativo (pergunta fora de escopo para avaliar abstenção). Esta amostra serve como baseline de validação funcional do pipeline, e não como comprovação estatística ampla de desempenho generalista.
+* **Tamanho Amostral Restrito ($N=6$)**: A bateria de referência utiliza o dataset canônico `contracts_eval_v1.json`, composto por 5 perguntas factuais sobre cláusulas contratuais e 1 caso de teste negativo (pergunta fora de escopo para avaliar abstenção). Esta amostra serve como baseline de validação funcional do pipeline, e não como comprovação estatística ampla de desempenho generalista. O repositório também inclui o dataset expandido `contracts_eval_v2.json` ($N=12$ casos cobrindo *single-hop*, *multi-hop*, *table boundary* e *out-of-scope adversarial*), além dos documentos sintéticos de benchmark em `data/eval_docs/` (ingeridos via `scripts/ingest_eval_docs.py`) e da métrica dedicada `abstention_accuracy` no runner.
 * **Viés de Autoavaliação (*Self-Judging Bias*)**: O mesmo modelo da família Gemini (`gemini-3.5-flash-lite`) atuou como gerador da resposta e como juiz avaliador das métricas de fidelidade (*Faithfulness*) e relevância (*Answer Relevancy*).
 * **Tratamento de Abstenção**: Para a consulta fora de escopo (sem evidências nos documentos indexados), o sistema absteve-se de responder conforme instruído, obtendo pontuação máxima de fidelidade por não produzir alucinações.
 * **Variabilidade de Latência e Limites de Cota**: Sob tiers gratuitos ou em baterias com maior volume de requisições, a latência de rede e a taxa de sucesso podem oscilar devido a limites de taxa (*HTTP 429 RESOURCE_EXHAUSTED*).
@@ -194,6 +194,7 @@ python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Iniciar o Frontend
@@ -221,11 +222,16 @@ A plataforma conta com **71 testes automatizados** no backend, cobrindo validaç
 # 1. Executar testes de unidade isolados (sem necessidade de banco de dados ativo)
 pytest backend/app/tests/test_evaluation_metrics.py backend/app/tests/test_sanitization.py backend/app/tests/test_parsing_service.py
 
-# 2. Executar suíte completa (requer PostgreSQL na porta 5434 ativo via Docker)
+# 2. Executar suíte completa (requer PostgreSQL de testes na porta 5434 via Docker)
+docker compose -f docker-compose.test.yml up -d
 pytest backend/app/tests/
 
-# 3. Executar o benchmark oficial de avaliação RAG via CLI (Baseline v1.2)
-python -m app.evaluation.runner --dataset backend/app/evaluation/datasets/contracts_eval_v1.json --name "Baseline v1.2" --baseline --top_k 5
+# 3. Ingerir documentos de benchmark e executar avaliação RAG via CLI
+python scripts/ingest_eval_docs.py
+# Linux/macOS:
+PYTHONPATH=backend python -m app.evaluation.runner --dataset backend/app/evaluation/datasets/contracts_eval_v1.json --name "Baseline v1.2" --baseline --top_k 5
+# Windows PowerShell:
+$env:PYTHONPATH="backend"; python -m app.evaluation.runner --dataset backend/app/evaluation/datasets/contracts_eval_v1.json --name "Baseline v1.2" --baseline --top_k 5
 ```
 
 ### Frontend (Node.js & Turbopack)
@@ -258,7 +264,7 @@ npm run build
 document-ai-platform/
 ├── backend/app/
 │   ├── agents/           # Orquestrador RAG (DocumentAgent) e context builder
-│   ├── api/              # Rotas REST (/auth, /notebooks, /documents, /chat, /evaluation)
+│   ├── api/              # Rotas REST (/auth, /users, /notebooks, /documents, /chat, /evaluation)
 │   ├── core/             # Configurações Pydantic, segurança JWT/Argon2id e IngestionQueue
 │   ├── database/         # Modelos SQLAlchemy, conexão e migrações automáticas
 │   ├── evaluation/       # Runner de benchmark, juízes LLM, métricas e datasets canônicos
@@ -272,8 +278,16 @@ document-ai-platform/
 │   ├── hooks/            # Custom hooks React (useDocumentProgress via SSE)
 │   ├── stores/           # Gerenciamento de estado Zustand (Chat, Notebook, Auth)
 │   └── types/            # Tipos e contratos TypeScript da API
-├── docs/                 # Documentação detalhada de arquitetura e fluxos
+├── data/eval_docs/       # PDFs sintéticos para reprodução do benchmark RAG
+├── docs/
+│   └── ARCHITECTURE.md   # Documentação detalhada de arquitetura e sequência SSE
+├── scripts/
+│   └── ingest_eval_docs.py # Ingestão dos PDFs de benchmark no pgvector
 ├── docker-compose.yml    # Orquestração de containers (FastAPI, PostgreSQL pgvector, Ollama)
+├── docker-compose.test.yml # Container PostgreSQL isolado para testes automatizados
 ├── Dockerfile            # Imagem do backend (Python 3.13-slim)
+├── pytest.ini            # Configuração do Pytest (pythonpath e testpaths)
+├── .env.example          # Template de variáveis de ambiente
+├── .env.test.example     # Template de variáveis para banco de testes
 └── requirements.txt      # Dependências do backend pinadas
 ```

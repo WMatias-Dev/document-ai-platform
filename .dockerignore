@@ -26,6 +26,8 @@ htmlcov/
 
 backend/uploads/
 uploads/
+data/
+*.pdf
 frontend/
 node_modules/
 .next/

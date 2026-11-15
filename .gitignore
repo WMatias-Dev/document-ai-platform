@@ -31,6 +31,10 @@ htmlcov/
 *.db
 /backend/uploads/
 uploads/
+*.pdf
+!data/
+!data/eval_docs/
+!data/eval_docs/*.pdf
 
 # Logs
 *.log
@@ -50,7 +54,8 @@ next-env.d.ts
 
 # Docs / Scratch
 /graphify-out
-/docs
+/docs/*
+!/docs/ARCHITECTURE.md
 
 /.agents
 /.gemini
